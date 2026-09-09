@@ -1,0 +1,37 @@
+services:
+  n8n:
+    # Versão fixada para que a demonstração do TCC seja reproduzível.
+    image: docker.n8n.io/n8nio/n8n:2.38.1
+    container_name: wg-hidraulica-n8n
+    restart: unless-stopped
+
+    # Restringe o acesso ao próprio computador durante o desenvolvimento.
+    ports:
+      - "127.0.0.1:5678:5678"
+
+    environment:
+      # Mantém datas e horários das automações no fuso usado pela empresa.
+      TZ: America/Sao_Paulo
+      GENERIC_TIMEZONE: America/Sao_Paulo
+
+      # Configuração do endereço usado pelos webhooks no ambiente local.
+      N8N_HOST: localhost
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      N8N_WEBHOOK_URL: http://localhost:5678/
+
+      # Desativa telemetria e sugestões que não são necessárias ao TCC.
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+
+      # Permite que as expressões do fluxo leiam as variáveis do arquivo
+      # .env.local, sem gravar as chaves dentro do arquivo do workflow.
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+
+    env_file:
+      # Reaproveita a conexão segura que o sistema já usa com o Supabase.
+      - ../../.env.local
+
+    volumes:
+      # Guarda credenciais e fluxos no D:, mesmo após recriar o contêiner.
+      - "${N8N_DATA_PATH:-D:/Docker/n8n-data}:/home/node/.n8n"

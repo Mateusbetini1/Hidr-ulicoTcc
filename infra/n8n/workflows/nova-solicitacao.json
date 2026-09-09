@@ -1,0 +1,202 @@
+[
+  {
+    "id": "NHmgqQZCM7jbhXe5",
+    "name": "WG Hidráulica - Nova solicitação",
+    "active": false,
+    "nodes": [
+      {
+        "parameters": {},
+        "id": "0c19f237-4f39-4e7d-b785-1654cc948061",
+        "name": "Executar teste",
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [260, 300]
+      },
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "minutes",
+                "minutesInterval": 5
+              }
+            ]
+          }
+        },
+        "id": "07add452-5db5-49f0-a066-344228797e22",
+        "name": "Verificar a cada 5 minutos",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [260, 120]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $env.SUPABASE_URL + '/rest/v1/rpc/listar_solicitacoes_painel' }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "={{ $env.SUPABASE_PUBLISHABLE_KEY }}"
+              },
+              {
+                "name": "Authorization",
+                "value": "={{ 'Bearer ' + $env.SUPABASE_PUBLISHABLE_KEY }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({ p_chave: $env.SUPABASE_DASHBOARD_SECRET }) }}",
+          "options": {}
+        },
+        "id": "ba4a8ea0-a6b1-4fd7-805d-c882486a6abd",
+        "name": "Consultar solicitações no Supabase",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [500, 300]
+      },
+      {
+        "parameters": {
+          "jsCode": "// A função do Supabase retorna todas as solicitações permitidas ao painel.\n// Aqui mantemos apenas as que ainda estão no início do atendimento.\nconst solicitacoes = $input.all().flatMap((item) => {\n  return Array.isArray(item.json) ? item.json : [item.json];\n});\n\nreturn solicitacoes\n  .filter((solicitacao) => solicitacao.status === 'novo')\n  .map((solicitacao) => ({\n    json: {\n      id: solicitacao.id,\n      cliente: solicitacao.cliente_nome,\n      empresa: solicitacao.empresa,\n      whatsapp: solicitacao.whatsapp,\n      descricao: solicitacao.descricao,\n      recebido_em: solicitacao.criado_em,\n    },\n  }));"
+        },
+        "id": "a1e6d86d-6df3-4686-85cd-7ba62de8e6d0",
+        "name": "Selecionar novas solicitações",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [780, 300]
+      },
+      {
+        "parameters": {
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "method": "POST",
+          "url": "https://api.resend.com/emails",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({ from: 'WG Hidráulica <onboarding@resend.dev>', to: ['mateus.betini@hotmail.com'], subject: 'Nova solicitação — ' + ($json.empresa || $json.cliente), text: 'Uma nova solicitação de orçamento foi recebida pela WG Hidráulica.\\n\\nCliente: ' + $json.cliente + '\\nEmpresa: ' + ($json.empresa || 'Não informada') + '\\nWhatsApp: ' + $json.whatsapp + '\\nNecessidade: ' + $json.descricao + '\\nRecebida em: ' + $json.recebido_em + '\\n\\nAcesse o painel comercial para continuar o atendimento.' }) }}",
+          "options": {}
+        },
+        "id": "cc67f235-e2bc-42cb-b370-6876d88cafec",
+        "name": "Notificar equipe por e-mail",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [1040, 300],
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $env.SUPABASE_URL + '/rest/v1/rpc/atualizar_status_painel' }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "={{ $env.SUPABASE_PUBLISHABLE_KEY }}"
+              },
+              {
+                "name": "Authorization",
+                "value": "={{ 'Bearer ' + $env.SUPABASE_PUBLISHABLE_KEY }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({ p_chave: $env.SUPABASE_DASHBOARD_SECRET, p_solicitacao_id: $('Selecionar novas solicitações').item.json.id, p_status: 'em_atendimento', p_observacao: 'Triagem automática realizada pelo n8n' }) }}",
+          "options": {}
+        },
+        "id": "859e0d5d-8db0-4532-a9cc-3293a9eac6df",
+        "name": "Iniciar atendimento automaticamente",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [1300, 300]
+      }
+    ],
+    "connections": {
+      "Executar teste": {
+        "main": [
+          [
+            {
+              "node": "Consultar solicitações no Supabase",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Verificar a cada 5 minutos": {
+        "main": [
+          [
+            {
+              "node": "Consultar solicitações no Supabase",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Consultar solicitações no Supabase": {
+        "main": [
+          [
+            {
+              "node": "Selecionar novas solicitações",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Selecionar novas solicitações": {
+        "main": [
+          [
+            {
+              "node": "Notificar equipe por e-mail",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Notificar equipe por e-mail": {
+        "main": [
+          [
+            {
+              "node": "Iniciar atendimento automaticamente",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "binaryMode": "separate"
+    },
+    "staticData": null,
+    "pinData": {},
+    "tags": []
+  }
+]
