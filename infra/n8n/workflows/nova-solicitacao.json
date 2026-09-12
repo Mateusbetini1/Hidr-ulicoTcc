@@ -98,7 +98,10 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [1040, 300],
-        "disabled": true
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 5000,
+        "onError": "continueErrorOutput"
       },
       {
         "parameters": {
@@ -124,14 +127,47 @@
           "sendBody": true,
           "contentType": "raw",
           "rawContentType": "application/json",
-          "body": "={{ JSON.stringify({ p_chave: $env.SUPABASE_DASHBOARD_SECRET, p_solicitacao_id: $('Selecionar novas solicitações').item.json.id, p_status: 'em_atendimento', p_observacao: 'Triagem automática realizada pelo n8n' }) }}",
+          "body": "={{ JSON.stringify({ p_chave: $env.SUPABASE_DASHBOARD_SECRET, p_solicitacao_id: $('Selecionar novas solicitações').item.json.id, p_status: 'em_atendimento', p_observacao: 'Notificação comercial enviada por e-mail via Resend. Atendimento iniciado automaticamente pelo n8n.' }) }}",
           "options": {}
         },
         "id": "859e0d5d-8db0-4532-a9cc-3293a9eac6df",
-        "name": "Iniciar atendimento automaticamente",
+        "name": "Registrar envio e iniciar atendimento",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
-        "position": [1300, 300]
+        "position": [1300, 220]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $env.SUPABASE_URL + '/rest/v1/rpc/atualizar_status_painel' }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "={{ $env.SUPABASE_PUBLISHABLE_KEY }}"
+              },
+              {
+                "name": "Authorization",
+                "value": "={{ 'Bearer ' + $env.SUPABASE_PUBLISHABLE_KEY }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({ p_chave: $env.SUPABASE_DASHBOARD_SECRET, p_solicitacao_id: $('Selecionar novas solicitações').item.json.id, p_status: 'em_atendimento', p_observacao: 'Falha ao enviar a notificação por e-mail após 3 tentativas. Solicitação encaminhada para atendimento manual.' }) }}",
+          "options": {}
+        },
+        "id": "cf6711e2-44ab-4c1a-a1d8-2e47deea9094",
+        "name": "Registrar falha para atendimento manual",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [1300, 420]
       }
     ],
     "connections": {
@@ -183,7 +219,14 @@
         "main": [
           [
             {
-              "node": "Iniciar atendimento automaticamente",
+              "node": "Registrar envio e iniciar atendimento",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Registrar falha para atendimento manual",
               "type": "main",
               "index": 0
             }

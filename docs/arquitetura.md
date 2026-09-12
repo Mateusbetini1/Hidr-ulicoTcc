@@ -37,6 +37,7 @@ flowchart LR
 3. A API confirma a identidade do usuário e valida se o status é permitido.
 4. A função protegida do banco atualiza a solicitação.
 5. O status anterior, o novo status e uma observação são registrados em `historico_status`.
+6. A automação registra se a notificação por e-mail foi enviada ou se o atendimento precisa de verificação manual.
 6. A interface atualiza os cartões e o funil sem recarregar a página inteira.
 
 ## Fluxo de criação do orçamento

@@ -46,11 +46,19 @@ O arquivo `workflows/nova-solicitacao.json` representa o fluxo inicial. Ele:
 2. possui um agendamento preparado para verificar o banco a cada cinco minutos;
 3. consulta a função segura já utilizada pelo painel comercial;
 4. seleciona somente solicitações com o status `novo`;
-5. muda a solicitação para `em atendimento`, evitando processamento duplicado.
+5. tenta enviar a notificação por e-mail até três vezes;
+6. registra no histórico se o envio funcionou ou falhou;
+7. muda a solicitação para `em atendimento`, evitando processamento duplicado.
 
 Entre a seleção e a mudança de status existe o nó `Notificar equipe por
-e-mail`. Ele prepara uma mensagem em texto simples com os dados comerciais,
-mas permanece desativado até a configuração segura da API do Resend.
+e-mail`. Ele prepara uma mensagem em texto simples com os dados comerciais e
+usa a API do Resend. Falhas temporárias são repetidas até três vezes, com cinco
+segundos entre as tentativas.
+
+No caminho de sucesso, o histórico informa que a notificação foi enviada. Se
+as três tentativas falharem, o fluxo registra a falha e encaminha a solicitação
+para atendimento manual. Nos dois casos o item sai do estado `novo`, impedindo
+novos envios automáticos e registros duplicados.
 
 O fluxo permanece inativo após a importação. Ele só deve ser publicado depois
 que a equipe definir o canal que receberá a notificação comercial.
