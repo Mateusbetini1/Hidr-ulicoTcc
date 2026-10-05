@@ -1,4 +1,5 @@
 import { headers } from 'next/headers';
+import Image from 'next/image';
 import Link from 'next/link';
 import { RequestDetail } from '../../../components/request-detail';
 import { getAdminEmail } from '../../../lib/admin-auth';
@@ -16,7 +17,9 @@ export default async function SolicitacaoPage({
   if (!adminEmail) {
     return (
       <main className="access-denied">
-        <span className="brand-mark">WG</span>
+        <span className="brand-mark">
+          <Image src="/logo-wg-mark.png" alt="WG Hidráulica" width={400} height={125} />
+        </span>
         <p className="public-kicker">Área restrita</p>
         <h1>Acesso não autorizado</h1>
         <p>Entre com a conta administrativa autorizada para consultar esta solicitação.</p>
@@ -37,7 +40,9 @@ export default async function SolicitacaoPage({
   if (!requests) {
     return (
       <main className="access-denied">
-        <span className="brand-mark">WG</span>
+        <span className="brand-mark">
+          <Image src="/logo-wg-mark.png" alt="WG Hidráulica" width={400} height={125} />
+        </span>
         <p className="public-kicker">Conexão indisponível</p>
         <h1>Não foi possível carregar</h1>
         <p>Tente novamente em instantes ou retorne ao painel comercial.</p>
@@ -51,7 +56,9 @@ export default async function SolicitacaoPage({
   if (!selectedRequest) {
     return (
       <main className="access-denied">
-        <span className="brand-mark">WG</span>
+        <span className="brand-mark">
+          <Image src="/logo-wg-mark.png" alt="WG Hidráulica" width={400} height={125} />
+        </span>
         <p className="public-kicker">Solicitação</p>
         <h1>Registro não encontrado</h1>
         <p>A solicitação pode ter sido removida ou o endereço está incorreto.</p>

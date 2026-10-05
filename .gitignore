@@ -40,3 +40,6 @@ next-env.d.ts
 /output/
 /tmp/
 /work/
+
+# fotos originais da empresa (fonte, fora do site)
+/app/assets/fotos-wg-hidraulica/

@@ -1,11 +1,12 @@
+import Image from 'next/image';
 import Link from 'next/link';
 
 export default function LoginPage() {
   return (
     <main className="login-page">
       <section className="login-brand">
-        <Link className="public-logo inverse" href="/">
-          <span>WG</span><strong>WG Hidráulica</strong>
+        <Link className="public-logo inverse" href="/" aria-label="WG Hidráulica, início">
+          <Image src="/logo-wg-inverse.png" alt="WG Hidráulica" width={1000} height={311} priority />
         </Link>
         <div>
           <p className="public-kicker">Área restrita</p>

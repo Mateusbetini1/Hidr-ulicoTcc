@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 
 function initials(value: string) {
@@ -14,7 +15,9 @@ export function SystemSidebar({ adminEmail }: { adminEmail: string }) {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <span className="brand-mark">WG</span>
+        <span className="brand-mark">
+          <Image src="/logo-wg-mark.png" alt="" width={400} height={125} />
+        </span>
         <span>WG Hidráulica<small>Central comercial</small></span>
       </div>
       <nav aria-label="Navegação principal">
