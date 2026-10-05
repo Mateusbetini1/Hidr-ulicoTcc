@@ -1,0 +1,7 @@
+# Ajuste LOCAL da maquina do Richard. Nao altera o compose.yaml versionado.
+# Motivo: o Supabase roda localmente (supabase start) e, de dentro do container,
+# 127.0.0.1 aponta para o proprio n8n. O host e alcancado por host.docker.internal.
+services:
+  n8n:
+    environment:
+      SUPABASE_URL: http://host.docker.internal:54321
