@@ -19,7 +19,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!getAdminEmail(request.headers)) {
+  if (!await getAdminEmail(request.headers)) {
     return NextResponse.json({ message: 'Acesso não autorizado.' }, { status: 401 });
   }
 
@@ -49,7 +49,7 @@ export async function GET(
 
     const pdf = await createProposalPdf(selectedRequest, items, proposals[0] ?? defaultProposal);
     const filename = `proposta-wg-${id.slice(0, 8)}.pdf`;
-    const body = pdf.buffer.slice(pdf.byteOffset, pdf.byteOffset + pdf.byteLength);
+    const body = new Uint8Array(pdf).buffer;
 
     return new NextResponse(body, {
       headers: {
@@ -65,4 +65,3 @@ export async function GET(
     );
   }
 }
-

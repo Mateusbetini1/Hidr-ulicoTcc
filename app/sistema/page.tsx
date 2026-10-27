@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function SistemaPage() {
   const requestHeaders = await headers();
-  const adminEmail = getAdminEmail(requestHeaders);
+  const adminEmail = await getAdminEmail(requestHeaders);
 
   if (!adminEmail) {
     return (

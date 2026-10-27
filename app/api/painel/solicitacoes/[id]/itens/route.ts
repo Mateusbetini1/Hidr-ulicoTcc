@@ -22,7 +22,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!getAdminEmail(request.headers)) {
+  if (!await getAdminEmail(request.headers)) {
     return NextResponse.json({ message: 'Acesso não autorizado.' }, { status: 401 });
   }
 
@@ -46,7 +46,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!getAdminEmail(request.headers)) {
+  if (!await getAdminEmail(request.headers)) {
     return NextResponse.json({ message: 'Acesso não autorizado.' }, { status: 401 });
   }
 

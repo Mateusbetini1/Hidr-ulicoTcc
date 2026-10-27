@@ -29,7 +29,10 @@ export function SystemSidebar({ adminEmail }: { adminEmail: string }) {
       </nav>
       <div className="profile">
         <span className="avatar">{initials(adminEmail)}</span>
-        <span>{adminEmail}<small>Administrador</small></span>
+        <span className="profile-details">{adminEmail}<small>Administrador</small></span>
+        <form action="/api/auth/logout" method="post">
+          <button type="submit">Sair</button>
+        </form>
       </div>
     </aside>
   );

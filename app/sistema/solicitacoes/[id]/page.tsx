@@ -12,7 +12,7 @@ export default async function SolicitacaoPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const adminEmail = getAdminEmail(await headers());
+  const adminEmail = await getAdminEmail(await headers());
 
   if (!adminEmail) {
     return (

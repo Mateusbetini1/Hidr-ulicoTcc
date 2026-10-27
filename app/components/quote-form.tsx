@@ -45,6 +45,7 @@ export function QuoteForm() {
   return (
     <form ref={formRef} className="quote-form" onSubmit={handleSubmit}>
       <h2>Solicite seu orçamento</h2>
+      <p className="triage-entry">Precisa de ajuda para organizar seu pedido? <a href="/atendimento">Iniciar atendimento guiado</a></p>
       <label>
         Nome
         <input name="name" placeholder="Seu nome" minLength={2} maxLength={120} required />

@@ -6,7 +6,7 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string; itemId: string }> },
 ) {
-  if (!getAdminEmail(request.headers)) {
+  if (!await getAdminEmail(request.headers)) {
     return NextResponse.json({ message: 'Acesso não autorizado.' }, { status: 401 });
   }
 

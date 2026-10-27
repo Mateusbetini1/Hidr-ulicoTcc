@@ -46,7 +46,7 @@ Acesse:
 - `http://localhost:3000/contato` para enviar uma solicitação;
 - `http://localhost:3000/sistema` para abrir o painel.
 
-Em desenvolvimento, o painel usa o usuário identificado como `desenvolvimento@local`. Em produção, somente os e-mails definidos em `ADMIN_EMAILS` são aceitos.
+O painel usa autenticação por e-mail e senha do Supabase Auth. Somente contas já criadas no Supabase e listadas em `ADMIN_EMAILS` são aceitas. A sessão administrativa é armazenada em cookie HTTP-only assinado por `AUTH_SESSION_SECRET` (ou, temporariamente, por `SUPABASE_DASHBOARD_SECRET` quando o segredo específico não estiver configurado). Para liberar o acesso local sem login durante uma manutenção, use `AUTH_DEV_BYPASS=true`; nunca habilite essa opção em produção.
 
 ## Comandos principais
 
@@ -82,6 +82,10 @@ public/          Imagens e ícones públicos
 - [Execução local do n8n](infra/n8n/README.md)
 
 ## Próximas etapas sugeridas
+
+### Triagem comercial adicionada em outubro de 2026
+
+A página `/atendimento` organiza os dados técnicos e permite revisão antes do envio para o painel. O formulário de contato oferece um link para esse atendimento. A integração opcional de extração por IA está implementada, mas permanece desativada até configurar chave, modelo e limites de uso. Consulte [Triagem comercial](docs/triagem-comercial.md). Essa implementação ainda precisa ser publicada e validada com o provedor real.
 
 1. configurar os dados cadastrais completos da WG Hidráulica;
 2. integrar notificações e automações com n8n;

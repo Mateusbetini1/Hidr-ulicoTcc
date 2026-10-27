@@ -7,7 +7,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const adminEmail = getAdminEmail(request.headers);
+  const adminEmail = await getAdminEmail(request.headers);
   if (!adminEmail) {
     return NextResponse.json({ message: 'Acesso não autorizado.' }, { status: 401 });
   }

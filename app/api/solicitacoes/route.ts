@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { parseTriage, triageDescription } from '../../lib/commercial-triage';
 
 type QuotePayload = {
   name?: unknown;
@@ -7,6 +8,8 @@ type QuotePayload = {
   email?: unknown;
   request?: unknown;
   website?: unknown;
+  triage?: unknown;
+  confirmed?: unknown;
 };
 
 function text(value: unknown, maxLength: number) {
@@ -17,7 +20,10 @@ export async function POST(request: Request) {
   let payload: QuotePayload;
 
   try {
-    payload = (await request.json()) as QuotePayload;
+    const body = await request.text();
+    if (body.length > 16000) return NextResponse.json({ message: 'Solicitação muito longa.' }, { status: 413 });
+    payload = JSON.parse(body) as QuotePayload;
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error();
   } catch {
     return NextResponse.json({ message: 'Dados inválidos.' }, { status: 400 });
   }
@@ -31,7 +37,15 @@ export async function POST(request: Request) {
   const company = text(payload.company, 160);
   const phone = text(payload.phone, 30);
   const email = text(payload.email, 180);
-  const description = text(payload.request, 3000);
+  let description = text(payload.request, 3000);
+  if (payload.triage !== undefined) {
+    try {
+      if (payload.confirmed !== true) throw new Error('Revise e confirme os dados antes de enviar.');
+      description = triageDescription(typeof payload.request === 'string' ? payload.request : '', parseTriage(payload.triage));
+    } catch (error) {
+      return NextResponse.json({ message: error instanceof Error ? error.message : 'Triagem inválida.' }, { status: 400 });
+    }
+  }
 
   if (name.length < 2 || phone.length < 8 || description.length < 10) {
     return NextResponse.json(
@@ -50,7 +64,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/criar_solicitacao_publica`, {
+  let response: Response;
+  try {
+    response = await fetch(`${supabaseUrl}/rest/v1/rpc/criar_solicitacao_publica`, {
     method: 'POST',
     headers: {
       apikey: supabaseKey,
@@ -63,9 +79,12 @@ export async function POST(request: Request) {
       p_whatsapp: phone,
       p_email: email || null,
       p_descricao: description,
-      p_origem: 'site',
+      p_origem: payload.triage !== undefined ? 'site_triagem' : 'site',
     }),
   });
+  } catch {
+    return NextResponse.json({ message: 'Não foi possível conectar ao atendimento. Seus dados foram mantidos; tente novamente.' }, { status: 502 });
+  }
 
   if (!response.ok) {
     console.error('Supabase quote request failed', response.status, await response.text());

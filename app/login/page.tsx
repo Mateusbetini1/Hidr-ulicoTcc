@@ -1,7 +1,19 @@
 import Image from 'next/image';
 import Link from 'next/link';
 
-export default function LoginPage() {
+const messages: Record<string, string> = {
+  credenciais: 'E-mail ou senha inválidos.',
+  'nao-autorizado': 'Esta conta não está autorizada a acessar o painel.',
+  configuracao: 'O acesso ainda não foi configurado pelo administrador.',
+  indisponivel: 'Não foi possível entrar agora. Tente novamente em instantes.',
+};
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ erro?: string }>;
+}) {
+  const { erro } = await searchParams;
   return (
     <main className="login-page">
       <section className="login-brand">
@@ -19,9 +31,20 @@ export default function LoginPage() {
           <p className="public-kicker">Acesso da equipe</p>
           <h2>Entrar</h2>
           <p className="login-description">
-            O painel utiliza a identidade autorizada do ambiente para proteger os dados comerciais.
+            Use a conta administrativa cadastrada para acessar os dados comerciais.
           </p>
-          <Link className="login-button" href="/sistema" target="_top">Entrar no sistema</Link>
+          {erro && messages[erro] && <p className="login-error" role="alert">{messages[erro]}</p>}
+          <form action="/api/auth/login" method="post">
+            <label>
+              E-mail
+              <input name="email" type="email" autoComplete="username" maxLength={254} required />
+            </label>
+            <label>
+              Senha
+              <input name="password" type="password" autoComplete="current-password" minLength={6} maxLength={200} required />
+            </label>
+            <button type="submit">Entrar no sistema</button>
+          </form>
           <small>Apenas contas administrativas autorizadas podem consultar e alterar solicitações.</small>
         </div>
       </section>
