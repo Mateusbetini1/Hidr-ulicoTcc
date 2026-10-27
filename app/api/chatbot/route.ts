@@ -28,7 +28,7 @@ export async function GET() {
 }
 
 function parseMessages(value: unknown): ChatMessage[] {
-  if (!Array.isArray(value) || value.length < 1 || value.length > 14) throw new Error();
+  if (!Array.isArray(value) || value.length < 1 || value.length > 30) throw new Error();
   let total = 0;
   return value.map((item) => {
     if (!item || typeof item !== 'object' || Array.isArray(item)) throw new Error();
@@ -36,7 +36,7 @@ function parseMessages(value: unknown): ChatMessage[] {
     if ((message.role !== 'user' && message.role !== 'assistant') || typeof message.content !== 'string') throw new Error();
     const content = message.content.trim();
     total += content.length;
-    if (!content || content.length > 1000 || total > 6000) throw new Error();
+    if (!content || content.length > 1000 || total > 12000) throw new Error();
     return { role: message.role, content };
   });
 }
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
   let triage: Triage = { ...emptyTriage };
   try {
     const body = await request.text();
-    if (body.length > 12000) throw new Error();
+    if (body.length > 30000) throw new Error();
     const payload = JSON.parse(body) as { messages?: unknown; triage?: unknown; website?: unknown };
     if (payload.website) throw new Error();
     messages = parseMessages(payload.messages);

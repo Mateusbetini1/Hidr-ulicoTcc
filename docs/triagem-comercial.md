@@ -10,7 +10,7 @@ O envio usa `/api/solicitacoes` e a função existente `criar_solicitacao_public
 
 ## IA opcional
 
-`/api/chatbot` valida a origem, os tamanhos e o estado da conversa e encaminha a requisição ao webhook local do n8n. O workflow `WG Hidráulica - Chatbot Gemini` consulta o Gemini 3.5 Flash-Lite com JSON Schema, valida novamente a resposta e a devolve ao site. O histórico é limitado a 14 mensagens e não é persistido pelo sistema. Somente a conversa técnica é enviada ao provedor; nome, telefone, empresa e e-mail são coletados depois e não fazem parte da chamada. A chave permanece no servidor. A rota `/api/triagem` continua disponível para a extração de uma descrição em um único passo com a integração anterior, quando configurada.
+`/api/chatbot` valida a origem, os tamanhos e o estado da conversa e encaminha a requisição ao webhook local do n8n. O workflow `WG Hidráulica - Chatbot Gemini` consulta o Gemini 3.5 Flash-Lite com JSON Schema, valida novamente a resposta e a devolve ao site. O histórico é limitado a 30 mensagens e não é persistido pelo sistema. Somente a conversa técnica é enviada ao provedor; nome, telefone, empresa e e-mail são coletados depois e não fazem parte da chamada. A chave permanece no servidor. A rota `/api/triagem` continua disponível para a extração de uma descrição em um único passo com a integração anterior, quando configurada.
 
 Configurar no ambiente local e na hospedagem:
 

@@ -90,6 +90,14 @@ test('contratos HTTP sem chamadas externas', async () => {
     assert.equal((await chatResponse.json()).reply, 'Qual é a aplicação do cilindro?');
     assert.equal(calls.at(-1).url, 'http://localhost:5678/webhook/wg-hidraulica-chatbot');
     assert.equal(calls.at(-1).body.messages[0].content, valid.request);
+    const longConversation = Array.from({ length: 16 }, (_, index) => ({
+      role: index % 2 === 0 ? 'assistant' : 'user',
+      content: index % 2 === 0 ? 'Qual informação técnica você possui?' : 'Ainda estou conferindo os dados do cilindro.',
+    }));
+    assert.equal((await chatbot.POST(request({ messages: longConversation, triage: domain.emptyTriage }))).status, 200);
+    assert.equal(calls.at(-1).body.messages.length, 16);
+    const excessiveConversation = Array.from({ length: 31 }, () => ({ role: 'user', content: 'Mensagem técnica válida.' }));
+    assert.equal((await chatbot.POST(request({ messages: excessiveConversation, triage: domain.emptyTriage }))).status, 400);
     const foreign = new Request('http://localhost/api/triagem', { method: 'POST', headers: { Origin: 'https://foreign.invalid' }, body: JSON.stringify({ request: valid.request }) });
     assert.equal((await ai.POST(foreign)).status, 403);
   } finally {
