@@ -1,6 +1,6 @@
-# Triagem comercial
+# Triagem comercial e chatbot
 
-A rota `/atendimento`, acessível pelo formulário de contato, organiza a solicitação em três etapas. O cliente descreve sua necessidade, informa os dados técnicos disponíveis e revisa o resumo antes de cadastrar nome e contato e confirmar o envio.
+A rota `/atendimento`, acessível pelo formulário de contato, oferece uma conversa de triagem. O chatbot faz uma pergunta por vez, organiza a solicitação e apresenta um resumo para revisão antes de cadastrar nome e contato e confirmar o envio.
 
 Campos: serviço (fabricação, manutenção, reforma ou orientação), aplicação, quantidade, medidas/identificação, problema e prazo desejado. Campos técnicos podem ficar vazios; as pendências acompanham o resumo. A triagem não fornece preços, valida compatibilidade, dimensiona componentes ou confirma prazos e reuniões.
 
@@ -10,20 +10,25 @@ O envio usa `/api/solicitacoes` e a função existente `criar_solicitacao_public
 
 ## IA opcional
 
-`/api/triagem` usa a Responses API com saída estruturada para extrair os campos da descrição. A interface pede revisão humana. Somente a descrição técnica é enviada ao provedor; os campos de contato não fazem parte da chamada. `store` é definido como `false`. Chaves permanecem no servidor.
+`/api/chatbot` valida a origem, os tamanhos e o estado da conversa e encaminha a requisição ao webhook local do n8n. O workflow `WG Hidráulica - Chatbot Gemini` consulta o Gemini 3.5 Flash-Lite com JSON Schema, valida novamente a resposta e a devolve ao site. O histórico é limitado a 14 mensagens e não é persistido pelo sistema. Somente a conversa técnica é enviada ao provedor; nome, telefone, empresa e e-mail são coletados depois e não fazem parte da chamada. A chave permanece no servidor. A rota `/api/triagem` continua disponível para a extração de uma descrição em um único passo com a integração anterior, quando configurada.
 
 Configurar no ambiente local e na hospedagem:
 
-- `OPENAI_API_KEY`: chave autorizada para a API.
-- `OPENAI_TRIAGE_MODEL`: identificador de modelo disponível na conta e compatível com Responses e saída estruturada.
-- `TRIAGE_AI_ENABLED=true`: ativa explicitamente a função.
+- `GEMINI_API_KEY`: chave criada no Google AI Studio; é lida pelo contêiner do n8n.
+- `GEMINI_CHATBOT_MODEL=gemini-3.5-flash-lite`: modelo usado pelo workflow.
+- `CHATBOT_N8N_WEBHOOK_URL=http://localhost:5678/webhook/wg-hidraulica-chatbot`: webhook chamado pelo servidor do site.
+- `CHATBOT_AI_ENABLED=true`: ativa explicitamente o chatbot.
+- `OPENAI_API_KEY`, `OPENAI_TRIAGE_MODEL` e `TRIAGE_AI_ENABLED`: permanecem opcionais e pertencem somente à rota legada `/api/triagem`.
 
-Sem configuração, a interface opera como atendimento guiado e não se apresenta como IA. Falhas do provedor não impedem preenchimento manual. A extração foi implementada, mas a avaliação com um modelo real depende da configuração da chave e do modelo.
+Sem configuração, a interface informa que o assistente está indisponível e oferece o formulário direto. Falhas do provedor não apagam o histórico que permanece no navegador. A integração precisa ser avaliada com um modelo real antes da publicação.
 
-Há limite de tamanho de entrada, tempo de chamada e dez chamadas por minuto por instância. Esse limite em memória é complementar e não é global: antes de disponibilizar IA publicamente, configurar limites no gateway e no projeto do provedor para controlar uso e custos. A checagem de origem não substitui proteção contra abuso. Não habilitar a opção em produção sem esses controles.
+Há limite de tamanho de entrada, tempo de chamada e vinte chamadas por minuto por instância. Esse limite em memória é complementar e não é global: antes de disponibilizar IA publicamente, configurar limites no gateway e no projeto do provedor para controlar uso e cotas. A checagem de origem não substitui proteção contra abuso. Não habilitar a opção em produção sem esses controles.
 
 ## Verificação
 
 Testar dados incompletos, revisão/edição, preservação dos campos em erro, IA desativada, saída inválida do provedor e envio somente após confirmação. Para teste integrado real, cadastrar uma solicitação claramente fictícia: o fluxo ativo do n8n poderá enviar e-mail. Testes automatizados de contrato usam respostas simuladas e não disparam notificações.
 
-Referência da integração: https://developers.openai.com/api/docs/guides/structured-outputs
+Referências da integração:
+
+- https://ai.google.dev/gemini-api/docs/structured-output
+- https://ai.google.dev/gemini-api/docs/pricing

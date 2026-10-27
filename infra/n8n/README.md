@@ -63,6 +63,23 @@ novos envios automáticos e registros duplicados.
 O fluxo permanece inativo após a importação. Ele só deve ser publicado depois
 que a equipe definir o canal que receberá a notificação comercial.
 
+### Chatbot com Gemini
+
+O arquivo `workflows/chatbot-gemini.json` recebe as mensagens técnicas do site
+em `POST /webhook/wg-hidraulica-chatbot`, consulta o modelo definido em
+`GEMINI_CHATBOT_MODEL` e devolve um objeto validado ao site. O fluxo não recebe
+nome, telefone, empresa ou e-mail. Para ativá-lo, configure em `.env.local`:
+
+```env
+GEMINI_API_KEY=sua_chave_do_google_ai_studio
+GEMINI_CHATBOT_MODEL=gemini-3.5-flash-lite
+CHATBOT_N8N_WEBHOOK_URL=http://localhost:5678/webhook/wg-hidraulica-chatbot
+CHATBOT_AI_ENABLED=true
+```
+
+Depois, recrie o contêiner para carregar as variáveis, importe o workflow e
+ative-o. A chave não deve ser gravada no workflow nem enviada ao navegador.
+
 As chaves não ficam no workflow. O contêiner lê os valores do `.env.local`,
 que já é ignorado pelo Git.
 

@@ -85,7 +85,7 @@ public/          Imagens e ícones públicos
 
 ### Triagem comercial adicionada em outubro de 2026
 
-A página `/atendimento` organiza os dados técnicos e permite revisão antes do envio para o painel. O formulário de contato oferece um link para esse atendimento. A integração opcional de extração por IA está implementada, mas permanece desativada até configurar chave, modelo e limites de uso. Consulte [Triagem comercial](docs/triagem-comercial.md). Essa implementação ainda precisa ser publicada e validada com o provedor real.
+A página `/atendimento` oferece um chatbot de triagem que conversa sobre a necessidade técnica, organiza os campos com saída estruturada e solicita revisão antes do envio para o painel. O site encaminha as mensagens ao n8n local, que consulta o Gemini 3.5 Flash-Lite. O formulário de contato continua disponível como alternativa. A integração permanece desativada até configurar a chave gratuita do Gemini e os limites de uso. Consulte [Triagem comercial](docs/triagem-comercial.md).
 
 1. configurar os dados cadastrais completos da WG Hidráulica;
 2. integrar notificações e automações com n8n;

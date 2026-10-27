@@ -12,6 +12,13 @@ export type Triage = {
   prazoDesejado: string;
 };
 
+export type ChatbotResult = {
+  reply: string;
+  triage: Triage;
+  readyForReview: boolean;
+  handoffRequested: boolean;
+};
+
 export const emptyTriage: Triage = {
   servico: 'nao_sei', aplicacao: '', quantidade: '', medidas: '', problema: '', prazoDesejado: '',
 };
@@ -31,6 +38,28 @@ export function parseTriage(value: unknown): Triage {
     result[field] = input[field].trim();
   }
   return result;
+}
+
+export function parseChatbotResult(value: unknown): ChatbotResult {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Resposta do atendimento inválida.');
+  }
+  const input = value as Record<string, unknown>;
+  if (
+    typeof input.reply !== 'string' ||
+    input.reply.trim().length < 2 ||
+    input.reply.length > 700 ||
+    typeof input.readyForReview !== 'boolean' ||
+    typeof input.handoffRequested !== 'boolean'
+  ) {
+    throw new Error('Resposta do atendimento inválida.');
+  }
+  return {
+    reply: input.reply.trim(),
+    triage: parseTriage(input.triage),
+    readyForReview: input.readyForReview,
+    handoffRequested: input.handoffRequested,
+  };
 }
 
 export function pendingFields(data: Triage): string[] {
