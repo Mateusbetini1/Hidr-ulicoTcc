@@ -2533,3 +2533,36 @@ img.catalog-image {
     min-height: 230px;
   }
 }
+
+
+/* Modal customizado de confirmação (remoção de itens e outras ações) */
+.wg-dialog{width:min(460px,calc(100vw - 32px));max-height:calc(100dvh - 32px);margin:auto;overflow:auto;padding:0;border:0;border-top:5px solid var(--yellow);border-radius:4px;box-shadow:0 24px 60px rgba(7,25,67,.35);color:var(--ink)}
+.wg-dialog::backdrop{background:rgba(7,25,67,.55)}
+.wg-dialog form{display:grid;gap:14px;padding:22px}
+.wg-dialog h2{margin:0;font-size:17px;line-height:1.35}
+.wg-dialog label{display:grid;gap:6px;color:var(--navy);font-size:11px;font-weight:700}
+.wg-dialog select,.wg-dialog textarea{width:100%;padding:10px;border:1px solid #d8dee7;font:inherit;font-size:13px;font-weight:400}
+.wg-dialog-actions{display:flex;justify-content:flex-end;gap:9px}
+.wg-dialog-actions .secondary-button{min-height:42px}
+.wg-dialog-actions .secondary-button,.wg-dialog-actions .danger-button,.wg-dialog-actions .primary-button{min-height:42px;padding:0 18px;font-size:12px;font-weight:700}
+
+/* ===== Modal de confirmação ===== */
+.confirm-dialog{border-top-color:#c73535}
+.confirm-dialog[open]{animation:confirm-in .14s ease-out}
+@keyframes confirm-in{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.confirm-dialog[open]{animation:none}}
+.confirm-body{display:grid;gap:16px;padding:22px}
+.confirm-heading{display:flex;align-items:flex-start;gap:14px}
+.confirm-heading h2{margin:0 0 6px;font-size:17px;line-height:1.3}
+.confirm-heading p{margin:0;color:var(--muted);font-size:12px;line-height:1.55}
+.confirm-icon{display:grid;flex:none;width:38px;height:38px;place-items:center;border-radius:50%;font-size:19px;font-weight:800}
+.confirm-danger{background:#fbe3e3;color:#b42525}
+.confirm-default{background:#e8eefc;color:var(--blue)}
+.confirm-details{display:grid;gap:4px;padding:12px 14px;border-left:3px solid #c73535;background:#f5f7fa;font-size:12px}
+.confirm-details strong{font-size:13px;overflow-wrap:anywhere}
+.confirm-details span{color:var(--muted)}
+.confirm-details b{color:var(--ink)}
+.danger-button{min-height:42px;padding:0 18px;border:0;border-radius:4px;background:#c73535;color:#fff;cursor:pointer;font-weight:700}
+.danger-button:hover{background:#a82828}
+.danger-button:disabled{cursor:wait;opacity:.65}
+.wg-dialog button:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
