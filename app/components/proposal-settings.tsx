@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { FormEvent, useEffect, useState } from 'react';
-import type { DadosProposta } from '../lib/supabase-dashboard';
+import { FormEvent, useEffect, useState } from "react";
+import type { DadosProposta } from "../lib/supabase-dashboard";
 
 type ProposalForm = {
   validadeDias: string;
@@ -11,18 +11,18 @@ type ProposalForm = {
 };
 
 const defaultForm: ProposalForm = {
-  validadeDias: '15',
-  prazoEntrega: '',
-  condicoesPagamento: '',
-  observacoes: '',
+  validadeDias: "15",
+  prazoEntrega: "",
+  condicoesPagamento: "",
+  observacoes: "",
 };
 
 function toForm(proposal: DadosProposta): ProposalForm {
   return {
     validadeDias: String(proposal.validade_dias),
-    prazoEntrega: proposal.prazo_entrega ?? '',
-    condicoesPagamento: proposal.condicoes_pagamento ?? '',
-    observacoes: proposal.observacoes ?? '',
+    prazoEntrega: proposal.prazo_entrega ?? "",
+    condicoesPagamento: proposal.condicoes_pagamento ?? "",
+    observacoes: proposal.observacoes ?? "",
   };
 }
 
@@ -34,28 +34,41 @@ export function ProposalSettings({
   hasItems: boolean;
 }) {
   const [form, setForm] = useState<ProposalForm>(defaultForm);
+  // Último conteúdo gravado no banco; null = condições ainda não salvas.
+  const [savedForm, setSavedForm] = useState<ProposalForm | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [feedback, setFeedback] = useState('');
-  const [error, setError] = useState('');
+  const [feedback, setFeedback] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let isActive = true;
 
-    fetch(`/api/painel/solicitacoes/${requestId}/proposta/dados`, { cache: 'no-store' })
+    fetch(`/api/painel/solicitacoes/${requestId}/proposta/dados`, {
+      cache: "no-store",
+    })
       .then(async (response) => {
         const result = (await response.json()) as {
           proposta?: DadosProposta;
+          salva?: boolean;
           message?: string;
         };
         if (!response.ok || !result.proposta) {
-          throw new Error(result.message || 'Falha ao carregar a proposta.');
+          throw new Error(result.message || "Falha ao carregar a proposta.");
         }
-        if (isActive) setForm(toForm(result.proposta));
+        if (isActive) {
+          const loaded = toForm(result.proposta);
+          setForm(loaded);
+          setSavedForm(result.salva ? loaded : null);
+        }
       })
       .catch((loadError: unknown) => {
         if (isActive) {
-          setError(loadError instanceof Error ? loadError.message : 'Falha ao carregar.');
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Falha ao carregar.",
+          );
         }
       })
       .finally(() => {
@@ -67,33 +80,48 @@ export function ProposalSettings({
     };
   }, [requestId]);
 
+  const hasSavedConditions = savedForm !== null;
+  const hasUnsavedChanges =
+    hasSavedConditions &&
+    (Object.keys(form) as (keyof ProposalForm)[]).some(
+      (key) => form[key].trim() !== savedForm[key].trim(),
+    );
+  const canDownload =
+    hasItems && hasSavedConditions && !hasUnsavedChanges && !loading;
+
   async function saveProposal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
-    setError('');
-    setFeedback('');
+    setError("");
+    setFeedback("");
 
     try {
       const response = await fetch(
         `/api/painel/solicitacoes/${requestId}/proposta/dados`,
         {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(form),
         },
       );
       const result = (await response.json()) as { message?: string };
-      if (!response.ok) throw new Error(result.message || 'Falha ao salvar.');
-      setFeedback('Condições comerciais salvas. O PDF já pode ser gerado.');
+      if (!response.ok) throw new Error(result.message || "Falha ao salvar.");
+      setSavedForm(form);
+      setFeedback("Condições comerciais salvas. O PDF já pode ser gerado.");
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Falha ao salvar.');
+      setError(
+        saveError instanceof Error ? saveError.message : "Falha ao salvar.",
+      );
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <section className="proposal-settings" aria-labelledby="proposal-settings-title">
+    <section
+      className="proposal-settings"
+      aria-labelledby="proposal-settings-title"
+    >
       <div>
         <p className="section-label">Condições da proposta</p>
         <h3 id="proposal-settings-title">Informações do documento</h3>
@@ -107,7 +135,9 @@ export function ProposalSettings({
             min="1"
             max="365"
             value={form.validadeDias}
-            onChange={(event) => setForm({ ...form, validadeDias: event.target.value })}
+            onChange={(event) =>
+              setForm({ ...form, validadeDias: event.target.value })
+            }
             disabled={loading}
             required
           />
@@ -117,7 +147,9 @@ export function ProposalSettings({
           <input
             maxLength={300}
             value={form.prazoEntrega}
-            onChange={(event) => setForm({ ...form, prazoEntrega: event.target.value })}
+            onChange={(event) =>
+              setForm({ ...form, prazoEntrega: event.target.value })
+            }
             placeholder="Ex.: 20 dias úteis após aprovação"
             disabled={loading}
           />
@@ -128,7 +160,9 @@ export function ProposalSettings({
             rows={2}
             maxLength={500}
             value={form.condicoesPagamento}
-            onChange={(event) => setForm({ ...form, condicoesPagamento: event.target.value })}
+            onChange={(event) =>
+              setForm({ ...form, condicoesPagamento: event.target.value })
+            }
             placeholder="Ex.: 50% na aprovação e 50% na entrega"
             disabled={loading}
           />
@@ -139,29 +173,66 @@ export function ProposalSettings({
             rows={3}
             maxLength={2000}
             value={form.observacoes}
-            onChange={(event) => setForm({ ...form, observacoes: event.target.value })}
+            onChange={(event) =>
+              setForm({ ...form, observacoes: event.target.value })
+            }
             placeholder="Garantia, frete, impostos ou outras informações relevantes"
             disabled={loading}
           />
         </label>
         <div className="proposal-actions">
-          <button className="secondary-button" type="submit" disabled={loading || saving}>
-            {saving ? 'Salvando…' : 'Salvar condições'}
+          <button
+            className="secondary-button"
+            type="submit"
+            disabled={loading || saving}
+          >
+            {saving ? "Salvando…" : "Salvar condições"}
           </button>
           <a
-            className={`primary-button primary-link${hasItems ? '' : ' disabled'}`}
-            href={hasItems ? `/api/painel/solicitacoes/${requestId}/proposta` : undefined}
-            aria-disabled={!hasItems}
+            className={`primary-button primary-link${canDownload ? "" : " disabled"}`}
+            href={
+              canDownload
+                ? `/api/painel/solicitacoes/${requestId}/proposta`
+                : undefined
+            }
+            aria-disabled={!canDownload}
+            tabIndex={canDownload ? undefined : -1}
           >
             Baixar proposta em PDF
           </a>
         </div>
       </form>
 
-      {!hasItems && <p className="proposal-hint">Adicione ao menos um item para gerar o PDF.</p>}
-      {error && <p className="quote-message error" role="alert">{error}</p>}
-      {feedback && <p className="quote-message success" role="status">{feedback}</p>}
+      <p className="proposal-hint proposal-note">
+        <strong>Obs.:</strong> o PDF só pode ser gerado depois que as condições
+        forem salvas. Enquanto elas não estiverem salvas (ou houver alterações
+        pendentes), o botão de baixar a proposta fica bloqueado.
+      </p>
+      {!hasItems && (
+        <p className="proposal-hint">
+          Adicione ao menos um item para gerar o PDF.
+        </p>
+      )}
+      {hasItems && !hasSavedConditions && !loading && (
+        <p className="proposal-hint">
+          Clique em “Salvar condições” para liberar o PDF.
+        </p>
+      )}
+      {hasItems && hasUnsavedChanges && (
+        <p className="proposal-hint">
+          Há alterações não salvas. Salve as condições para liberar o PDF.
+        </p>
+      )}
+      {error && (
+        <p className="quote-message error" role="alert">
+          {error}
+        </p>
+      )}
+      {feedback && (
+        <p className="quote-message success" role="status">
+          {feedback}
+        </p>
+      )}
     </section>
   );
 }
-

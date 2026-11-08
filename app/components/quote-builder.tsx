@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import type { ItemOrcamento } from '../lib/supabase-dashboard';
-import { ProposalSettings } from './proposal-settings';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import type { ItemOrcamento } from "../lib/supabase-dashboard";
+import { ProposalSettings } from "./proposal-settings";
 
 type ItemForm = {
   itemId: string;
@@ -12,29 +12,47 @@ type ItemForm = {
 };
 
 const emptyForm: ItemForm = {
-  itemId: '',
-  descricao: '',
-  quantidade: '1',
-  valorUnitario: '',
+  itemId: "",
+  descricao: "",
+  quantidade: "1",
+  valorUnitario: "",
 };
 
+// Aceita apenas dígitos e um único separador decimal (vírgula ou ponto),
+// com no máximo 2 casas decimais (mesma regra de step=0.01 / numeric(12,2)).
+function sanitizeDecimal(raw: string) {
+  const cleaned = raw.replace(/[^\d.,]/g, "");
+  const separatorIndex = cleaned.search(/[.,]/);
+  if (separatorIndex === -1) return cleaned;
+
+  const integerPart = cleaned.slice(0, separatorIndex);
+  const separator = cleaned[separatorIndex];
+  const decimalPart = cleaned
+    .slice(separatorIndex + 1)
+    .replace(/[.,]/g, "")
+    .slice(0, 2);
+
+  return `${integerPart}${separator}${decimalPart}`;
+}
+
 function currency(value: number) {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
   }).format(value);
 }
 
 async function fetchItems(requestId: string) {
   const response = await fetch(`/api/painel/solicitacoes/${requestId}/itens`, {
-    cache: 'no-store',
+    cache: "no-store",
   });
   const result = (await response.json()) as {
     itens?: ItemOrcamento[];
     message?: string;
   };
 
-  if (!response.ok) throw new Error(result.message || 'Falha ao carregar o orçamento.');
+  if (!response.ok)
+    throw new Error(result.message || "Falha ao carregar o orçamento.");
   return result.itens ?? [];
 }
 
@@ -50,15 +68,17 @@ export function QuoteBuilder({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState('');
-  const [error, setError] = useState('');
+  const [feedback, setFeedback] = useState("");
+  const [error, setError] = useState("");
 
   const loadItems = useCallback(async () => {
-    setError('');
+    setError("");
     try {
       setItems(await fetchItems(requestId));
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Falha ao carregar.');
+      setError(
+        loadError instanceof Error ? loadError.message : "Falha ao carregar.",
+      );
     } finally {
       setLoading(false);
     }
@@ -73,7 +93,11 @@ export function QuoteBuilder({
       })
       .catch((loadError: unknown) => {
         if (isActive) {
-          setError(loadError instanceof Error ? loadError.message : 'Falha ao carregar.');
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Falha ao carregar.",
+          );
         }
       })
       .finally(() => {
@@ -86,31 +110,43 @@ export function QuoteBuilder({
   }, [requestId]);
 
   const total = useMemo(
-    () => items.reduce((sum, item) => sum + Number(item.quantidade) * Number(item.valor_unitario), 0),
+    () =>
+      items.reduce(
+        (sum, item) =>
+          sum + Number(item.quantidade) * Number(item.valor_unitario),
+        0,
+      ),
     [items],
   );
 
   async function saveItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
-    setError('');
-    setFeedback('');
+    setError("");
+    setFeedback("");
 
     try {
-      const response = await fetch(`/api/painel/solicitacoes/${requestId}/itens`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
+      const response = await fetch(
+        `/api/painel/solicitacoes/${requestId}/itens`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        },
+      );
       const result = (await response.json()) as { message?: string };
-      if (!response.ok) throw new Error(result.message || 'Falha ao salvar.');
+      if (!response.ok) throw new Error(result.message || "Falha ao salvar.");
 
       setForm(emptyForm);
-      setFeedback(form.itemId ? 'Item atualizado.' : 'Item adicionado ao orçamento.');
+      setFeedback(
+        form.itemId ? "Item atualizado." : "Item adicionado ao orçamento.",
+      );
       onBudgetStarted();
       await loadItems();
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Falha ao salvar.');
+      setError(
+        saveError instanceof Error ? saveError.message : "Falha ao salvar.",
+      );
     } finally {
       setSaving(false);
     }
@@ -123,29 +159,33 @@ export function QuoteBuilder({
       quantidade: String(item.quantidade),
       valorUnitario: String(item.valor_unitario),
     });
-    setFeedback('Editando item selecionado.');
+    setFeedback("Editando item selecionado.");
   }
 
   async function removeItem(item: ItemOrcamento) {
     if (!window.confirm(`Remover “${item.descricao}” do orçamento?`)) return;
 
     setRemovingId(item.id);
-    setError('');
-    setFeedback('');
+    setError("");
+    setFeedback("");
 
     try {
       const response = await fetch(
         `/api/painel/solicitacoes/${requestId}/itens/${item.id}`,
-        { method: 'DELETE' },
+        { method: "DELETE" },
       );
       const result = (await response.json()) as { message?: string };
-      if (!response.ok) throw new Error(result.message || 'Falha ao remover.');
+      if (!response.ok) throw new Error(result.message || "Falha ao remover.");
 
       if (form.itemId === item.id) setForm(emptyForm);
-      setFeedback('Item removido do orçamento.');
+      setFeedback("Item removido do orçamento.");
       await loadItems();
     } catch (removeError) {
-      setError(removeError instanceof Error ? removeError.message : 'Falha ao remover.');
+      setError(
+        removeError instanceof Error
+          ? removeError.message
+          : "Falha ao remover.",
+      );
     } finally {
       setRemovingId(null);
     }
@@ -166,7 +206,9 @@ export function QuoteBuilder({
           Descrição do produto ou serviço
           <input
             value={form.descricao}
-            onChange={(event) => setForm({ ...form, descricao: event.target.value })}
+            onChange={(event) =>
+              setForm({ ...form, descricao: event.target.value })
+            }
             minLength={2}
             maxLength={500}
             placeholder="Ex.: Cilindro hidráulico sob medida"
@@ -177,7 +219,9 @@ export function QuoteBuilder({
           Quantidade
           <input
             value={form.quantidade}
-            onChange={(event) => setForm({ ...form, quantidade: event.target.value })}
+            onChange={(event) =>
+              setForm({ ...form, quantidade: event.target.value })
+            }
             type="number"
             min="0.001"
             max="999999"
@@ -189,53 +233,85 @@ export function QuoteBuilder({
           Valor unitário
           <input
             value={form.valorUnitario}
-            onChange={(event) => setForm({ ...form, valorUnitario: event.target.value })}
-            type="number"
-            min="0"
-            max="9999999999.99"
-            step="0.01"
+            onChange={(event) =>
+              setForm({
+                ...form,
+                valorUnitario: sanitizeDecimal(event.target.value),
+              })
+            }
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
+            pattern="\d{1,10}([.,]\d{1,2})?"
+            title="Use apenas números, com vírgula ou ponto para os centavos (ex.: 1500,50)"
+            maxLength={14}
             placeholder="0,00"
             required
           />
         </label>
         <div className="item-form-actions">
           {form.itemId && (
-            <button className="secondary-button" type="button" onClick={() => setForm(emptyForm)}>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => setForm(emptyForm)}
+            >
               Cancelar edição
             </button>
           )}
           <button className="primary-button" type="submit" disabled={saving}>
-            {saving ? 'Salvando…' : form.itemId ? 'Salvar alteração' : '+ Adicionar item'}
+            {saving
+              ? "Salvando…"
+              : form.itemId
+                ? "Salvar alteração"
+                : "+ Adicionar item"}
           </button>
         </div>
       </form>
 
-      {error && <p className="quote-message error" role="alert">{error}</p>}
-      {feedback && <p className="quote-message success" role="status">{feedback}</p>}
+      {error && (
+        <p className="quote-message error" role="alert">
+          {error}
+        </p>
+      )}
+      {feedback && (
+        <p className="quote-message success" role="status">
+          {feedback}
+        </p>
+      )}
 
       <div className="quote-items">
         {loading && <p className="dashboard-state">Carregando itens…</p>}
         {!loading && items.length === 0 && !error && (
-          <p className="dashboard-state">Nenhum item adicionado. Preencha o formulário para iniciar o orçamento.</p>
+          <p className="dashboard-state">
+            Nenhum item adicionado. Preencha o formulário para iniciar o
+            orçamento.
+          </p>
         )}
         {items.map((item) => {
-          const subtotal = Number(item.quantidade) * Number(item.valor_unitario);
+          const subtotal =
+            Number(item.quantidade) * Number(item.valor_unitario);
           return (
             <article className="quote-item" key={item.id}>
               <div>
                 <strong>{item.descricao}</strong>
-                <small>{Number(item.quantidade).toLocaleString('pt-BR')} × {currency(Number(item.valor_unitario))}</small>
+                <small>
+                  {Number(item.quantidade).toLocaleString("pt-BR")} ×{" "}
+                  {currency(Number(item.valor_unitario))}
+                </small>
               </div>
               <strong>{currency(subtotal)}</strong>
               <div className="quote-item-actions">
-                <button type="button" onClick={() => editItem(item)}>Editar</button>
+                <button type="button" onClick={() => editItem(item)}>
+                  Editar
+                </button>
                 <button
                   className="danger-action"
                   type="button"
                   disabled={removingId === item.id}
                   onClick={() => void removeItem(item)}
                 >
-                  {removingId === item.id ? 'Removendo…' : 'Remover'}
+                  {removingId === item.id ? "Removendo…" : "Remover"}
                 </button>
               </div>
             </article>
