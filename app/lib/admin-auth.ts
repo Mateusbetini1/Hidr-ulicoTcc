@@ -102,18 +102,22 @@ function cookieValue(headers: HeaderReader, name: string) {
     const separator = part.indexOf('=');
     if (separator < 0) continue;
     if (part.slice(0, separator).trim() === name) {
-      return decodeURIComponent(part.slice(separator + 1).trim());
+      return part.slice(separator + 1).trim();
     }
   }
-  return '';
+  return null;
 }
 
 export async function getAdminEmail(headers: HeaderReader) {
-  const hostedEmail = headers.get('oai-authenticated-user-email')?.trim().toLowerCase() ?? '';
-  if (hostedEmail && isAllowedAdmin(hostedEmail)) return hostedEmail;
-
+  // O cabeçalho de e-mail da hospedagem não comprova a identidade do visitante.
   const session = cookieValue(headers, ADMIN_SESSION_COOKIE);
-  if (session) return verifyAdminSession(session);
+  if (session !== null) {
+    try {
+      return await verifyAdminSession(decodeURIComponent(session));
+    } catch {
+      return null;
+    }
+  }
 
   if (process.env.NODE_ENV !== 'production' && process.env.AUTH_DEV_BYPASS === 'true') {
     return 'desenvolvimento@local';
