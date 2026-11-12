@@ -32,7 +32,7 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "={{ $env.SUPABASE_URL + '/rest/v1/rpc/listar_solicitacoes_painel' }}",
+          "url": "={{ $env.SUPABASE_URL + '/rest/v1/rpc/reservar_notificacoes_solicitacao' }}",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
@@ -53,21 +53,23 @@
           "sendBody": true,
           "contentType": "raw",
           "rawContentType": "application/json",
-          "body": "={{ JSON.stringify({ p_chave: $env.SUPABASE_DASHBOARD_SECRET }) }}",
-          "options": {}
+          "body": "={{ JSON.stringify({ p_chave: $env.SUPABASE_DASHBOARD_SECRET, p_remetente: $env.WG_NOTIFICACAO_REMETENTE || null, p_destinatario: $env.WG_NOTIFICACAO_DESTINATARIO || null }) }}",
+          "options": {
+            "timeout": 15000
+          }
         },
         "id": "ba4a8ea0-a6b1-4fd7-805d-c882486a6abd",
-        "name": "Consultar solicitações no Supabase",
+        "name": "Reservar notificações no Supabase",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [500, 300]
       },
       {
         "parameters": {
-          "jsCode": "// A função do Supabase retorna todas as solicitações permitidas ao painel.\n// Aqui mantemos apenas as que ainda estão no início do atendimento.\nconst solicitacoes = $input.all().flatMap((item) => {\n  return Array.isArray(item.json) ? item.json : [item.json];\n});\n\nreturn solicitacoes\n  .filter((solicitacao) => solicitacao.status === 'novo')\n  .map((solicitacao) => ({\n    json: {\n      id: solicitacao.id,\n      cliente: solicitacao.cliente_nome,\n      empresa: solicitacao.empresa,\n      whatsapp: solicitacao.whatsapp,\n      descricao: solicitacao.descricao,\n      recebido_em: solicitacao.criado_em,\n    },\n  }));"
+          "jsCode": "const { notificacoes } = $input.first().json;\nif (!Array.isArray(notificacoes)) throw new Error('Resposta inválida da fila de notificações');\nreturn notificacoes.map(notificacao => ({ json: notificacao, pairedItem: { item: 0 } }));"
         },
         "id": "a1e6d86d-6df3-4686-85cd-7ba62de8e6d0",
-        "name": "Selecionar novas solicitações",
+        "name": "Expandir reservas",
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [780, 300]
@@ -84,90 +86,80 @@
               {
                 "name": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "name": "Idempotency-Key",
+                "value": "={{ $json.chave_idempotencia }}"
               }
             ]
           },
           "sendBody": true,
           "contentType": "raw",
           "rawContentType": "application/json",
-          "body": "={{ JSON.stringify({ from: 'WG Hidráulica <onboarding@resend.dev>', to: ['mateus.betini@hotmail.com'], subject: 'Nova solicitação — ' + ($json.empresa || $json.cliente), text: 'Uma nova solicitação de orçamento foi recebida pela WG Hidráulica.\\n\\nCliente: ' + $json.cliente + '\\nEmpresa: ' + ($json.empresa || 'Não informada') + '\\nWhatsApp: ' + $json.whatsapp + '\\nNecessidade: ' + $json.descricao + '\\nRecebida em: ' + $json.recebido_em + '\\n\\nAcesse o painel comercial para continuar o atendimento.' }) }}",
-          "options": {}
+          "body": "={{ (() => {\n  const limite = Date.parse($json.reservada_ate);\n  if (!(limite - Date.now() > 30000)) throw new Error('Reserva insuficiente para enviar');\n  return JSON.stringify($json.payload);\n})() }}",
+          "options": {
+            "timeout": 20000,
+            "response": {
+              "response": {
+                "fullResponse": true,
+                "neverError": true,
+                "responseFormat": "json"
+              }
+            }
+          }
         },
         "id": "cc67f235-e2bc-42cb-b370-6876d88cafec",
         "name": "Notificar equipe por e-mail",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [1040, 300],
-        "retryOnFail": true,
-        "maxTries": 3,
-        "waitBetweenTries": 5000,
-        "onError": "continueErrorOutput"
+        "onError": "continueRegularOutput"
       },
       {
         "parameters": {
-          "method": "POST",
-          "url": "={{ $env.SUPABASE_URL + '/rest/v1/rpc/atualizar_status_painel' }}",
-          "sendHeaders": true,
-          "headerParameters": {
-            "parameters": [
-              {
-                "name": "apikey",
-                "value": "={{ $env.SUPABASE_PUBLISHABLE_KEY }}"
-              },
-              {
-                "name": "Authorization",
-                "value": "={{ 'Bearer ' + $env.SUPABASE_PUBLISHABLE_KEY }}"
-              },
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              }
-            ]
-          },
-          "sendBody": true,
-          "contentType": "raw",
-          "rawContentType": "application/json",
-          "body": "={{ JSON.stringify({ p_chave: $env.SUPABASE_DASHBOARD_SECRET, p_solicitacao_id: $('Selecionar novas solicitações').item.json.id, p_status: 'em_atendimento', p_observacao: 'Notificação comercial enviada por e-mail via Resend. Atendimento iniciado automaticamente pelo n8n.' }) }}",
-          "options": {}
-        },
-        "id": "859e0d5d-8db0-4532-a9cc-3293a9eac6df",
-        "name": "Registrar envio e iniciar atendimento",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.2,
-        "position": [1300, 220]
-      },
-      {
-        "parameters": {
-          "method": "POST",
-          "url": "={{ $env.SUPABASE_URL + '/rest/v1/rpc/atualizar_status_painel' }}",
-          "sendHeaders": true,
-          "headerParameters": {
-            "parameters": [
-              {
-                "name": "apikey",
-                "value": "={{ $env.SUPABASE_PUBLISHABLE_KEY }}"
-              },
-              {
-                "name": "Authorization",
-                "value": "={{ 'Bearer ' + $env.SUPABASE_PUBLISHABLE_KEY }}"
-              },
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              }
-            ]
-          },
-          "sendBody": true,
-          "contentType": "raw",
-          "rawContentType": "application/json",
-          "body": "={{ JSON.stringify({ p_chave: $env.SUPABASE_DASHBOARD_SECRET, p_solicitacao_id: $('Selecionar novas solicitações').item.json.id, p_status: 'em_atendimento', p_observacao: 'Falha ao enviar a notificação por e-mail após 3 tentativas. Solicitação encaminhada para atendimento manual.' }) }}",
-          "options": {}
+          "mode": "runOnceForEachItem",
+          "jsCode": "const reserva = $('Expandir reservas').item.json;\nconst { statusCode, body } = $json;\nconst http = Number(statusCode);\nlet resultado = 'incerto';\nlet resendId = null;\nif (http >= 200 && http < 300 && typeof body?.id === 'string' && body.id.trim() && body.id.length <= 128) {\n  resultado = 'aceito';\n  resendId = body.id;\n} else if (http === 429) {\n  resultado = 'repetir';\n} else if ([400, 401, 403, 404, 405, 413, 422].includes(http)) {\n  resultado = 'rejeitado';\n}\nreturn { json: {\n  solicitacao_id: reserva.solicitacao_id,\n  reserva: reserva.reserva,\n  resultado,\n  resend_id: resendId,\n  erro: resultado === 'aceito' ? null : (Number.isInteger(http) && http >= 100 ? 'HTTP ' + http : 'resposta_indisponivel'),\n} };"
         },
         "id": "cf6711e2-44ab-4c1a-a1d8-2e47deea9094",
-        "name": "Registrar falha para atendimento manual",
+        "name": "Classificar resultado do envio",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1270, 300]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $env.SUPABASE_URL + '/rest/v1/rpc/finalizar_notificacao_solicitacao' }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "={{ $env.SUPABASE_PUBLISHABLE_KEY }}"
+              },
+              {
+                "name": "Authorization",
+                "value": "={{ 'Bearer ' + $env.SUPABASE_PUBLISHABLE_KEY }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({ p_chave: $env.SUPABASE_DASHBOARD_SECRET, p_solicitacao_id: $json.solicitacao_id, p_reserva: $json.reserva, p_resultado: $json.resultado, p_resend_id: $json.resend_id, p_erro: $json.erro }) }}",
+          "options": {
+            "timeout": 15000
+          }
+        },
+        "id": "859e0d5d-8db0-4532-a9cc-3293a9eac6df",
+        "name": "Registrar resultado no Supabase",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
-        "position": [1300, 420]
+        "position": [1520, 300]
       }
     ],
     "connections": {
@@ -175,7 +167,7 @@
         "main": [
           [
             {
-              "node": "Consultar solicitações no Supabase",
+              "node": "Reservar notificações no Supabase",
               "type": "main",
               "index": 0
             }
@@ -186,25 +178,25 @@
         "main": [
           [
             {
-              "node": "Consultar solicitações no Supabase",
+              "node": "Reservar notificações no Supabase",
               "type": "main",
               "index": 0
             }
           ]
         ]
       },
-      "Consultar solicitações no Supabase": {
+      "Reservar notificações no Supabase": {
         "main": [
           [
             {
-              "node": "Selecionar novas solicitações",
+              "node": "Expandir reservas",
               "type": "main",
               "index": 0
             }
           ]
         ]
       },
-      "Selecionar novas solicitações": {
+      "Expandir reservas": {
         "main": [
           [
             {
@@ -219,14 +211,18 @@
         "main": [
           [
             {
-              "node": "Registrar envio e iniciar atendimento",
+              "node": "Classificar resultado do envio",
               "type": "main",
               "index": 0
             }
-          ],
+          ]
+        ]
+      },
+      "Classificar resultado do envio": {
+        "main": [
           [
             {
-              "node": "Registrar falha para atendimento manual",
+              "node": "Registrar resultado no Supabase",
               "type": "main",
               "index": 0
             }
