@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAdminEmail } from "../../../../../../lib/admin-auth";
+import { characterCount } from "../../../../../../lib/character-count";
 import {
   DadosProposta,
   supabaseDashboardRpc,
@@ -19,8 +20,9 @@ type ProposalPayload = {
   observacoes?: unknown;
 };
 
-function text(value: unknown, maxLength: number) {
-  return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
+function optionalText(value: unknown) {
+  if (value == null) return "";
+  return typeof value === "string" ? value.trim() : null;
 }
 
 export async function GET(
@@ -69,10 +71,13 @@ export async function POST(
   const payload = (await request
     .json()
     .catch(() => null)) as ProposalPayload | null;
-  const validadeDias = Number(payload?.validadeDias);
-  const prazoEntrega = text(payload?.prazoEntrega, 300);
-  const condicoesPagamento = text(payload?.condicoesPagamento, 500);
-  const observacoes = text(payload?.observacoes, 2000);
+  const validity = payload?.validadeDias;
+  const validadeDias = typeof validity === "number" || (typeof validity === "string" && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(validity.trim()))
+    ? Number(validity)
+    : Number.NaN;
+  const prazoEntrega = optionalText(payload?.prazoEntrega);
+  const condicoesPagamento = optionalText(payload?.condicoesPagamento);
+  const observacoes = optionalText(payload?.observacoes);
 
   if (
     !Number.isInteger(validadeDias) ||
@@ -83,6 +88,16 @@ export async function POST(
       { message: "Informe uma validade entre 1 e 365 dias." },
       { status: 400 },
     );
+  }
+
+  if (prazoEntrega === null || characterCount(prazoEntrega) > 300) {
+    return NextResponse.json({ message: "Informe um prazo de entrega de até 300 caracteres." }, { status: 400 });
+  }
+  if (condicoesPagamento === null || characterCount(condicoesPagamento) > 500) {
+    return NextResponse.json({ message: "Informe condições de pagamento de até 500 caracteres." }, { status: 400 });
+  }
+  if (observacoes === null || characterCount(observacoes) > 2000) {
+    return NextResponse.json({ message: "Informe observações de até 2.000 caracteres." }, { status: 400 });
   }
 
   try {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminEmail } from '../../../../../lib/admin-auth';
+import { characterCount } from '../../../../../lib/character-count';
 import {
   ItemOrcamento,
   supabaseDashboardRpc,
@@ -12,10 +13,18 @@ type ItemPayload = {
   valorUnitario?: unknown;
 };
 
-function parseNumber(value: unknown) {
-  if (typeof value === 'number') return value;
-  if (typeof value !== 'string') return Number.NaN;
-  return Number(value.replace(',', '.'));
+function parseDecimal(value: unknown, scale: number) {
+  if (typeof value !== 'number' && typeof value !== 'string') return Number.NaN;
+  const decimal = String(value).trim().replace(',', '.');
+  const match = /^([+-]?(?:\d+(?:\.\d*)?|\.\d+))(?:e([+-]?\d+))?$/i.exec(decimal);
+  if (!match) return Number.NaN;
+  const [, mantissa, exponent = '0'] = match;
+  const digits = mantissa.replace(/[+.-]/g, '');
+  if (!/[1-9]/.test(digits)) return 0;
+  const fraction = mantissa.split('.')[1] ?? '';
+  const trailingZeros = digits.length - digits.replace(/0+$/, '').length;
+  if (fraction.length - trailingZeros - Number(exponent) > scale) return Number.NaN;
+  return Number(decimal);
 }
 
 export async function GET(
@@ -58,20 +67,18 @@ export async function POST(
       ? payload.itemId.trim()
       : null;
   const descricao = typeof payload?.descricao === 'string' ? payload.descricao.trim() : '';
-  const quantidade = parseNumber(payload?.quantidade);
-  const valorUnitario = parseNumber(payload?.valorUnitario);
+  const quantidade = parseDecimal(payload?.quantidade, 3);
+  const valorUnitario = parseDecimal(payload?.valorUnitario, 2);
 
-  if (
-    descricao.length < 2 ||
-    descricao.length > 500 ||
-    !Number.isFinite(quantidade) ||
-    quantidade <= 0 ||
-    quantidade > 999999 ||
-    !Number.isFinite(valorUnitario) ||
-    valorUnitario < 0 ||
-    valorUnitario > 9999999999.99
-  ) {
-    return NextResponse.json({ message: 'Preencha o item com valores válidos.' }, { status: 400 });
+  const descriptionLength = characterCount(descricao);
+  if (descriptionLength < 2 || descriptionLength > 500) {
+    return NextResponse.json({ message: 'Informe uma descrição do item de 2 a 500 caracteres.' }, { status: 400 });
+  }
+  if (!(quantidade >= 0.001 && quantidade <= 999999)) {
+    return NextResponse.json({ message: 'Informe uma quantidade entre 0,001 e 999.999, com até três casas decimais.' }, { status: 400 });
+  }
+  if (!(valorUnitario >= 0 && valorUnitario <= 9999999999.99)) {
+    return NextResponse.json({ message: 'Informe um valor unitário de R$ 0,00 a R$ 9.999.999.999,99, com até duas casas decimais.' }, { status: 400 });
   }
 
   try {

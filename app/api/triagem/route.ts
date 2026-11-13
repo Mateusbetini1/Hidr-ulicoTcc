@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { characterCount } from '../../lib/character-count';
 import { parseTriage } from '../../lib/commercial-triage';
 
 const available = () => process.env.TRIAGE_AI_ENABLED === 'true' && !!process.env.OPENAI_API_KEY && !!process.env.OPENAI_TRIAGE_MODEL;
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
     const body = await request.text();
     if (body.length > 6000) throw new Error();
     const payload = JSON.parse(body);
-    if (typeof payload.request !== 'string' || payload.request.trim().length < 10 || payload.request.length > 1000 || payload.website) throw new Error();
+    if (typeof payload.request !== 'string' || characterCount(payload.request.trim()) < 10 || characterCount(payload.request) > 1000 || payload.website) throw new Error();
     description = payload.request.trim();
   } catch {
     return NextResponse.json({ message: 'Descreva sua necessidade em 10 a 1.000 caracteres.' }, { status: 400, headers });

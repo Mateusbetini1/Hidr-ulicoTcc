@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { characterCount } from '../../lib/character-count';
 import { parseTriage, triageDescription } from '../../lib/commercial-triage';
 
 type QuotePayload = {
@@ -12,8 +13,9 @@ type QuotePayload = {
   confirmed?: unknown;
 };
 
-function text(value: unknown, maxLength: number) {
-  return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
+function optionalText(value: unknown) {
+  if (value == null) return '';
+  return typeof value === 'string' ? value.trim() : null;
 }
 
 export async function POST(request: Request) {
@@ -29,15 +31,30 @@ export async function POST(request: Request) {
   }
 
   // Campo invisível para usuários: robôs costumam preenchê-lo automaticamente.
-  if (text(payload.website, 200)) {
+  if (typeof payload.website === 'string' && payload.website.trim()) {
     return NextResponse.json({ message: 'Solicitação enviada com sucesso.' });
   }
 
-  const name = text(payload.name, 120);
-  const company = text(payload.company, 160);
-  const phone = text(payload.phone, 30);
-  const email = text(payload.email, 180);
-  let description = text(payload.request, 3000);
+  const name = optionalText(payload.name);
+  const company = optionalText(payload.company);
+  const phone = optionalText(payload.phone);
+  const email = optionalText(payload.email);
+  let description = optionalText(payload.request);
+
+  const nameLength = characterCount(name ?? '');
+  if (nameLength < 2 || nameLength > 120) {
+    return NextResponse.json({ message: 'Informe um nome de 2 a 120 caracteres.' }, { status: 400 });
+  }
+  if (company === null || characterCount(company) > 160) {
+    return NextResponse.json({ message: 'Informe um nome de empresa de até 160 caracteres.' }, { status: 400 });
+  }
+  if (!phone || phone.length > 30 || !/^\+?[\d ().-]+$/.test(phone) || phone.replace(/\D/g, '').length < 8) {
+    return NextResponse.json({ message: 'Informe um WhatsApp com pelo menos 8 dígitos e até 30 caracteres.' }, { status: 400 });
+  }
+  if (email === null || email.length > 180 || (email && !/^[a-z\d.!#$%&'*+/=?^_`{|}~-]+@[a-z\d](?:[a-z\d-]*[a-z\d])?(?:\.[a-z\d](?:[a-z\d-]*[a-z\d])?)*$/i.test(email))) {
+    return NextResponse.json({ message: 'Informe um e-mail válido de até 180 caracteres.' }, { status: 400 });
+  }
+
   if (payload.triage !== undefined) {
     try {
       if (payload.confirmed !== true) throw new Error('Revise e confirme os dados antes de enviar.');
@@ -47,11 +64,9 @@ export async function POST(request: Request) {
     }
   }
 
-  if (name.length < 2 || phone.length < 8 || description.length < 10) {
-    return NextResponse.json(
-      { message: 'Preencha nome, WhatsApp e uma descrição mais detalhada.' },
-      { status: 400 },
-    );
+  const descriptionLength = characterCount(description ?? '');
+  if (descriptionLength < 10 || descriptionLength > 3000) {
+    return NextResponse.json({ message: 'Descreva sua necessidade em 10 a 3.000 caracteres.' }, { status: 400 });
   }
 
   const supabaseUrl = process.env.SUPABASE_URL;
