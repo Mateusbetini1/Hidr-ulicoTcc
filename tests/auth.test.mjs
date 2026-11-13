@@ -17,6 +17,28 @@ const login = await import(await source('../app/api/auth/login/route.ts', {
   '../../../lib/admin-auth': authUrl,
   'next/server': import.meta.resolve('next/server.js'),
 }));
+const logout = await import(await source('../app/api/auth/logout/route.ts', {
+  '../../../lib/admin-auth': authUrl,
+  'next/server': import.meta.resolve('next/server.js'),
+}));
+
+test('redirecionamentos e erros de autenticação desabilitam cache HTTP e do CDN', async () => {
+  const host = 'https://wg.example.invalid';
+  const rejectedOrigin = 'https://outro.example.invalid';
+  for (const [handler, path, origin, status] of [
+    [login, 'login', host, 303],
+    [logout, 'logout', host, 303],
+    [login, 'login', rejectedOrigin, 403],
+    [logout, 'logout', rejectedOrigin, 403],
+  ]) {
+    const response = await handler.POST(new Request(`${host}/api/auth/${path}`, {
+      method: 'POST', headers: { origin }, body: new URLSearchParams(),
+    }));
+    assert.equal(response.status, status);
+    assert.equal(response.headers.get('cache-control'), 'private, no-store');
+    assert.equal(response.headers.get('cloudflare-cdn-cache-control'), 'no-store');
+  }
+});
 
 test('sessão administrativa válida é aceita e adulteração é rejeitada', async () => {
   const saved = { ...process.env };
@@ -73,6 +95,8 @@ test('login por Supabase Auth continua emitindo sessão válida em HTTPS', async
     }));
 
     assert.equal(response.status, 303);
+    assert.equal(response.headers.get('cache-control'), 'private, no-store');
+    assert.equal(response.headers.get('cloudflare-cdn-cache-control'), 'no-store');
     assert.equal(response.headers.get('location'), `${host}/sistema`);
     const setCookie = response.headers.get('set-cookie');
     assert.match(setCookie, /;\s*Secure\b/i);

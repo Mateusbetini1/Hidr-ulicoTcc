@@ -14,6 +14,8 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === 'seatbelt';
 
 const localBindingConfig = {
   main: 'vinext/server/app-router-entry',
+  // Fixa a data do build existente e mantém process.env disponível no Worker.
+  compatibility_date: '2026-05-15',
   compatibility_flags: ['nodejs_compat'],
   d1_databases: d1
     ? [

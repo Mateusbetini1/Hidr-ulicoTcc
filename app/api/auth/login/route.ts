@@ -6,16 +6,18 @@ import {
   isAllowedAdmin,
 } from '../../../lib/admin-auth';
 
-function loginRedirect(request: Request, error?: string) {
+const noStore = { 'Cache-Control': 'private, no-store', 'Cloudflare-CDN-Cache-Control': 'no-store' };
+
+function loginRedirect(request: Request, error: string) {
   const url = new URL('/login', request.url);
   if (error) url.searchParams.set('erro', error);
-  return NextResponse.redirect(url, 303);
+  return NextResponse.redirect(url, { status: 303, headers: noStore });
 }
 
 export async function POST(request: Request) {
   const origin = request.headers.get('origin');
   if (origin && origin !== new URL(request.url).origin) {
-    return NextResponse.json({ message: 'Origem inválida.' }, { status: 403 });
+    return NextResponse.json({ message: 'Origem inválida.' }, { status: 403, headers: noStore });
   }
 
   const form = await request.formData().catch(() => null);
@@ -53,7 +55,7 @@ export async function POST(request: Request) {
     const session = await createAdminSession(authenticatedEmail);
     if (!session) return loginRedirect(request, 'configuracao');
 
-    const response = NextResponse.redirect(new URL('/sistema', request.url), 303);
+    const response = NextResponse.redirect(new URL('/sistema', request.url), { status: 303, headers: noStore });
     response.cookies.set({
       name: ADMIN_SESSION_COOKIE,
       value: session,
@@ -63,7 +65,6 @@ export async function POST(request: Request) {
       path: '/',
       maxAge: ADMIN_SESSION_MAX_AGE,
     });
-    response.headers.set('Cache-Control', 'no-store');
     return response;
   } catch {
     return loginRedirect(request, 'indisponivel');
