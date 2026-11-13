@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminEmail } from '../../../../../lib/admin-auth';
+import { characterCount } from '../../../../../lib/character-count';
 import {
   HistoricoComercial,
   supabaseDashboardRpc,
@@ -58,7 +59,8 @@ export async function POST(
   const descricao =
     typeof payload?.descricao === 'string' ? payload.descricao.trim() : '';
 
-  if (!isActivityType(payload?.tipo) || descricao.length < 2 || descricao.length > 2000) {
+  const descriptionLength = characterCount(descricao);
+  if (!isActivityType(payload?.tipo) || descriptionLength < 2 || descriptionLength > 2000) {
     return NextResponse.json(
       { message: 'Informe o tipo e uma descrição válida.' },
       { status: 400 },

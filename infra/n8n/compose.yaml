@@ -29,7 +29,7 @@ services:
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
 
     env_file:
-      # Reaproveita a conexão segura que o sistema já usa com o Supabase.
+      # Carrega a conexão e os endereços de notificação do ambiente local.
       - ../../.env.local
 
     volumes:

@@ -10,9 +10,10 @@ async function source(path, replacements = {}) {
   for (const [from, to] of Object.entries(replacements)) code = code.replaceAll(from, to);
   return 'data:text/javascript;base64,' + Buffer.from(code).toString('base64');
 }
-const domainUrl = await source('../app/lib/commercial-triage.ts');
+const countUrl = await source('../app/lib/character-count.ts');
+const domainUrl = await source('../app/lib/commercial-triage.ts', { './character-count': countUrl });
 const domain = await import(domainUrl);
-const replacements = { '../../lib/commercial-triage': domainUrl, 'next/server': import.meta.resolve('next/server.js') };
+const replacements = { '../../lib/commercial-triage': domainUrl, '../../lib/character-count': countUrl, 'next/server': import.meta.resolve('next/server.js') };
 const submit = await import(await source('../app/api/solicitacoes/route.ts', replacements));
 const ai = await import(await source('../app/api/triagem/route.ts', replacements));
 const chatbot = await import(await source('../app/api/chatbot/route.ts', replacements));
@@ -50,12 +51,33 @@ test('contratos HTTP sem chamadas externas', async () => {
     process.env.SUPABASE_PUBLISHABLE_KEY = 'test';
     const valid = { name: 'Cliente Teste', phone: '00000000000', request: 'Dois cilindros com vazamento', triage: domain.emptyTriage, confirmed: true };
     assert.equal((await submit.POST(request({ ...valid, confirmed: false }))).status, 400);
+    const direct = { name: valid.name, phone: '+55 (11) 00000-0000', request: valid.request };
+    for (const [input, message] of [
+      [{ name: 'x'.repeat(121) }, /nome/],
+      [{ name: '🔧' }, /nome/],
+      [{ company: 'x'.repeat(161) }, /empresa/],
+      [{ company: {} }, /empresa/],
+      [{ phone: '99999---' }, /WhatsApp/],
+      [{ phone: 'fone-99999999' }, /WhatsApp/],
+      [{ email: 'cliente@' }, /e-mail/],
+      [{ request: 'x'.repeat(3001) }, /3\.000/],
+      [{ request: '🔧'.repeat(9) }, /3\.000/],
+      [{ request: 'x'.repeat(1001), triage: domain.emptyTriage, confirmed: true }, /1\.000/],
+    ]) {
+      const response = await submit.POST(request({ ...direct, ...input }));
+      assert.equal(response.status, 400);
+      assert.match((await response.json()).message, message);
+    }
     assert.equal(calls.length, 0);
     assert.equal((await submit.POST(request(valid))).status, 201);
     assert.equal(calls[0].body.p_origem, 'site_triagem');
     assert.match(calls[0].body.p_descricao, /Pendências para análise/);
-    assert.equal((await submit.POST(request({ name: 'Cliente Teste', phone: '00000000000', request: 'Formulário direto preservado' }))).status, 201);
-    assert.equal(calls[1].body.p_origem, 'site');
+    const fullDescription = '🔧'.repeat(3000);
+    assert.equal((await submit.POST(request({ ...direct, request: fullDescription }))).status, 201);
+    assert.deepEqual(calls[1].body, {
+      p_nome: direct.name, p_empresa: null, p_whatsapp: direct.phone, p_email: null,
+      p_descricao: fullDescription, p_origem: 'site',
+    });
     assert.equal((await submit.POST(request(null))).status, 400);
     assert.equal((await submit.POST(request({ ...valid, request: 'x'.repeat(17000) }))).status, 413);
     globalThis.fetch = async () => { throw new Error('offline'); };

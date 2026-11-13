@@ -14,11 +14,11 @@ O melhor caminho é acompanhar uma solicitação do início ao fim. Assim, cada 
 
 ### 3. Regra de cadastro
 
-`supabase/migrations/202609010001_initial_commercial_schema.sql` contém `criar_solicitacao_publica`. A operação identifica o cliente pelo WhatsApp, cria a solicitação e registra seu status inicial. Centralizar isso no banco evita que uma solicitação fique parcialmente cadastrada.
+`criar_solicitacao_publica` foi criada na primeira migração e atualizada em `supabase/migrations/202609010006_proteger_cadastro_clientes.sql`. A operação reutiliza o cliente identificado pelo WhatsApp sem alterar seu cadastro, cria a solicitação e registra seu status inicial na mesma transação.
 
 ### 4. Proteção do painel
 
-`app/lib/admin-auth.ts` interpreta o e-mail informado pelo ambiente de hospedagem. Em produção ele precisa constar em `ADMIN_EMAILS`; localmente há uma identidade de desenvolvimento para facilitar os testes.
+`app/lib/admin-auth.ts` valida o cookie de sessão assinado, emitido após o login via Supabase Auth. O e-mail da sessão precisa constar em `ADMIN_EMAILS`. Cabeçalhos de identidade da hospedagem não autorizam o acesso ao painel. Fora da produção, a identidade de desenvolvimento continua disponível com `AUTH_DEV_BYPASS=true`.
 
 `app/lib/supabase-dashboard.ts` concentra a chamada das funções administrativas. Como esse módulo roda no servidor, a chave do painel não é exposta no JavaScript enviado ao visitante.
 

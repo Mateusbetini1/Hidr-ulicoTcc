@@ -30,38 +30,73 @@ pois pode conter credenciais usadas pelas automações.
 ## Papel na arquitetura
 
 1. o site registra a solicitação no Supabase;
-2. o n8n recebe um evento ou consulta as solicitações pendentes;
-3. o fluxo valida os dados e executa a automação configurada;
-4. o resultado é registrado novamente no sistema para manter o histórico.
+2. o banco cria uma entrada na fila privada na mesma transação;
+3. o n8n reserva até dez notificações a cada cinco minutos, ou por acionamento manual;
+4. o Resend recebe o e-mail, e o n8n registra o resultado na fila.
 
-O primeiro fluxo será uma integração de teste com o Supabase. Depois dessa
-validação, ele poderá enviar notificações e apoiar as demais etapas descritas
-no TCC.
+### Notificações de novas solicitações
 
-### Primeiro fluxo
+O arquivo `workflows/nova-solicitacao.json` usa as RPCs de reserva e conclusão
+da migração `202609010007_fila_notificacoes_solicitacao.sql`. A reserva impede
+que duas execuções escolham a mesma notificação. Um resultado só altera a fila
+quando pertence à reserva atual. O status da solicitação e o histórico comercial
+permanecem a cargo do fluxo de atendimento.
 
-O arquivo `workflows/nova-solicitacao.json` representa o fluxo inicial. Ele:
+Respostas temporárias e incertas podem gerar até três tentativas automáticas.
+A nova tentativa fica disponível após cinco minutos. Se uma execução parar
+sem gravar o resultado, a reserva expira em até dez minutos e a fila trata o
+resultado como incerto. O banco reutiliza o conteúdo e a chave de idempotência
+nas tentativas do mesmo ciclo. Como o [Resend retém a chave por 24 horas](https://resend.com/docs/dashboard/emails/idempotency-keys),
+a fila limita o reenvio automático a 23 horas a partir da primeira reserva.
+O estado `enviado` indica aceite pelo Resend e armazena o identificador do e-mail.
+A confirmação de entrega na caixa de entrada deve ser consultada no provedor.
 
-1. pode ser iniciado manualmente durante os testes;
-2. possui um agendamento preparado para verificar o banco a cada cinco minutos;
-3. consulta a função segura já utilizada pelo painel comercial;
-4. seleciona somente solicitações com o status `novo`;
-5. tenta enviar a notificação por e-mail até três vezes;
-6. registra no histórico se o envio funcionou ou falhou;
-7. muda a solicitação para `em atendimento`, evitando processamento duplicado.
+### Troca do workflow
 
-Entre a seleção e a mudança de status existe o nó `Notificar equipe por
-e-mail`. Ele prepara uma mensagem em texto simples com os dados comerciais e
-usa a API do Resend. Falhas temporárias são repetidas até três vezes, com cinco
-segundos entre as tentativas.
+1. Em homologação, desative o fluxo anterior e aguarde suas execuções em curso.
+2. Aplique as migrações pendentes até a `202609010007`. A fila começa com solicitações inseridas após a migração. Revise o histórico e o Resend antes de enfileirar manualmente alguma solicitação anterior.
+3. Configure `WG_NOTIFICACAO_REMETENTE` e `WG_NOTIFICACAO_DESTINATARIO` no `.env.local` da aplicação. O Compose carrega os endereços pelo `env_file` do serviço. O `--env-file` dos scripts fornece apenas os valores usados para interpolar o Compose, como `N8N_DATA_PATH`. Recrie somente o contêiner de homologação para carregar a configuração.
+4. Importe o workflow canônico e associe a credencial do Resend ao nó de e-mail. Se a interface exigir um objeto JSON em vez do array canônico, extraia o primeiro elemento para a cópia local `nova-solicitacao-importar.json`, em UTF-8 sem BOM. Essa cópia é ignorada pelo Git.
+5. Com o fluxo inativo, cadastre uma solicitação fictícia e execute pelo gatilho manual. Confira o e-mail, o registro na fila e o status comercial. Execute de novo e confirme que não houve outro envio. Publique após a validação.
 
-No caminho de sucesso, o histórico informa que a notificação foi enviada. Se
-as três tentativas falharem, o fluxo registra a falha e encaminha a solicitação
-para atendimento manual. Nos dois casos o item sai do estado `novo`, impedindo
-novos envios automáticos e registros duplicados.
+### Consultar e reprocessar
 
-O fluxo permanece inativo após a importação. Ele só deve ser publicado depois
-que a equipe definir o canal que receberá a notificação comercial.
+Use o SQL Editor com acesso administrativo. A consulta omite o conteúdo do e-mail.
+
+```sql
+select solicitacao_id, estado, tentativas, ultimo_erro, proxima_tentativa_em,
+       primeira_tentativa_em, resend_id, enviado_em
+from private.notificacoes_solicitacao
+order by criado_em desc;
+```
+
+Após corrigir a configuração ou investigar a falha, reagende pelo identificador
+da solicitação e inicie pelo gatilho. Retomar um nó isolado pode reutilizar dados
+antigos da execução.
+
+```sql
+select private.reprocessar_notificacao_solicitacao('<uuid-da-solicitacao>');
+```
+
+O resultado `true` confirma o reagendamento. Uma rejeição confirmada inicia
+novo ciclo com a configuração atual. Um resultado incerto dentro de 23 horas
+reutiliza a mesma chave e o mesmo conteúdo. Use a mesma conta Resend durante
+esse ciclo. Após o prazo, confira o resultado no Resend pela referência da
+solicitação e resolva manualmente. A função recusa reenvio incerto fora da janela,
+além de notificações já aceitas ou em processamento.
+
+Para uma solicitação anterior à migração, enfileire pelo UUID apenas depois de
+confirmar que ela precisa ser notificada.
+
+```sql
+insert into private.notificacoes_solicitacao (solicitacao_id)
+values ('<uuid-revisado>') on conflict (solicitacao_id) do nothing;
+```
+
+Os testes SQL em `tests/sql` podem ser executados com `psql -v ON_ERROR_STOP=1 -f <arquivo>`.
+O teste de concorrência usa `dblink` e requer o banco local descartável
+`wg_notificacoes_test`, com as migrações aplicadas, fila e configuração vazias,
+e acesso do administrador local pelas duas conexões de teste.
 
 ### Chatbot com Gemini
 
@@ -93,9 +128,9 @@ deve ser adicionada ao workflow, ao `.env.local` da aplicação ou ao Git.
 3. informe `Authorization` no campo de nome do cabeçalho;
 4. informe `Bearer SUA_CHAVE` no campo de valor e salve a credencial;
 5. associe a credencial ao nó `Notificar equipe por e-mail`;
-6. durante o desenvolvimento, mantenha o remetente
-   `WG Hidráulica <onboarding@resend.dev>` e envie somente para o endereço da
-   conta Resend;
+6. durante o desenvolvimento, configure `WG_NOTIFICACAO_REMETENTE` com o remetente
+   de teste `WG Hidráulica <onboarding@resend.dev>` e `WG_NOTIFICACAO_DESTINATARIO`
+   com o endereço da conta Resend;
 7. execute um teste e habilite o nó apenas após confirmar o recebimento.
 
 Para uso real, a equipe deverá validar um domínio próprio no Resend e substituir

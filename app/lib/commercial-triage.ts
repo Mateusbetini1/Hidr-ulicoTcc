@@ -1,3 +1,5 @@
+import { characterCount } from './character-count';
+
 export const serviceLabels = {
   fabricacao: 'Fabricação', manutencao: 'Manutenção', reforma: 'Reforma',
   nao_sei: 'Preciso de orientação',
@@ -32,7 +34,7 @@ export function parseTriage(value: unknown): Triage {
   const result = { servico: input.servico } as Triage;
   for (const field of ['aplicacao', 'quantidade', 'medidas', 'problema', 'prazoDesejado'] as const) {
     const max = field === 'quantidade' ? 80 : 250;
-    if (typeof input[field] !== 'string' || input[field].length > max) {
+    if (typeof input[field] !== 'string' || characterCount(input[field]) > max) {
       throw new Error('Confira os campos da triagem e o limite de caracteres.');
     }
     result[field] = input[field].trim();
@@ -73,7 +75,7 @@ export function pendingFields(data: Triage): string[] {
 }
 
 export function triageDescription(request: string, data: Triage): string {
-  if (request.trim().length < 10 || request.length > 1000) throw new Error('Descreva sua necessidade em 10 a 1.000 caracteres.');
+  if (characterCount(request.trim()) < 10 || characterCount(request) > 1000) throw new Error('Descreva sua necessidade em 10 a 1.000 caracteres.');
   const pending = pendingFields(data);
   return [
     'TRIAGEM COMERCIAL — dados revisados pelo cliente',

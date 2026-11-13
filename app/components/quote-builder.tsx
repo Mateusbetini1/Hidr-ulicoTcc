@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { formatBrlCents, moneyToCents, quoteSubtotalCents, quoteTotalCents } from '../lib/quote-money';
 import type { ItemOrcamento } from '../lib/supabase-dashboard';
 import { ConfirmDialog } from './confirm-dialog';
 import { ProposalSettings } from './proposal-settings';
@@ -18,13 +19,6 @@ const emptyForm: ItemForm = {
   quantidade: '1',
   valorUnitario: '',
 };
-
-function currency(value: number) {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(value);
-}
 
 async function fetchItems(requestId: string) {
   const response = await fetch(`/api/painel/solicitacoes/${requestId}/itens`, {
@@ -90,7 +84,7 @@ export function QuoteBuilder({
   }, [requestId]);
 
   const total = useMemo(
-    () => items.reduce((sum, item) => sum + Number(item.quantidade) * Number(item.valor_unitario), 0),
+    () => quoteTotalCents(items),
     [items],
   );
 
@@ -171,7 +165,7 @@ export function QuoteBuilder({
           <p className="section-label">Orçamento comercial</p>
           <h2 id="quote-title">Itens da proposta</h2>
         </div>
-        <strong>{currency(total)}</strong>
+        <strong>{formatBrlCents(total)}</strong>
       </div>
 
       <form className="item-form" onSubmit={saveItem}>
@@ -232,14 +226,14 @@ export function QuoteBuilder({
           <p className="dashboard-state">Nenhum item adicionado. Preencha o formulário para iniciar o orçamento.</p>
         )}
         {items.map((item) => {
-          const subtotal = Number(item.quantidade) * Number(item.valor_unitario);
+          const subtotal = quoteSubtotalCents(item);
           return (
             <article className="quote-item" key={item.id}>
               <div>
                 <strong>{item.descricao}</strong>
-                <small>{Number(item.quantidade).toLocaleString('pt-BR')} × {currency(Number(item.valor_unitario))}</small>
+                <small>{Number(item.quantidade).toLocaleString('pt-BR')} × {formatBrlCents(moneyToCents(item.valor_unitario))}</small>
               </div>
-              <strong>{currency(subtotal)}</strong>
+              <strong>{formatBrlCents(subtotal)}</strong>
               <div className="quote-item-actions">
                 <button type="button" onClick={() => editItem(item)}>Editar</button>
                 <button
@@ -259,7 +253,7 @@ export function QuoteBuilder({
 
       <footer className="quote-total">
         <span>Valor total do orçamento</span>
-        <strong>{currency(total)}</strong>
+        <strong>{formatBrlCents(total)}</strong>
       </footer>
 
       <ProposalSettings requestId={requestId} hasItems={items.length > 0} />
@@ -273,9 +267,9 @@ export function QuoteBuilder({
             <>
               <strong>{pendingRemoval.descricao}</strong>
               <span>
-                {Number(pendingRemoval.quantidade).toLocaleString('pt-BR')} × {currency(Number(pendingRemoval.valor_unitario))}
+                {Number(pendingRemoval.quantidade).toLocaleString('pt-BR')} × {formatBrlCents(moneyToCents(pendingRemoval.valor_unitario))}
                 {' = '}
-                <b>{currency(Number(pendingRemoval.quantidade) * Number(pendingRemoval.valor_unitario))}</b>
+                <b>{formatBrlCents(quoteSubtotalCents(pendingRemoval))}</b>
               </span>
             </>
           )
