@@ -96,5 +96,7 @@ Essa chave não é enviada ao navegador. O banco armazena apenas seu hash SHA-25
 - `202609010003_quote_items.sql`: cria as funções protegidas de consulta, gravação e remoção dos itens do orçamento.
 - `202609010004_proposal_details.sql`: cria os dados comerciais e as funções protegidas usadas pelo gerador de proposta.
 - `202609010005_commercial_history.sql`: cria atividades comerciais e a linha do tempo unificada do atendimento.
+- `202609010006_proteger_cadastro_clientes.sql`: preserva os dados do cliente existente no cadastro público.
+- `202609010007_fila_notificacoes_solicitacao.sql`: cria a fila privada de notificações e as funções de reserva e conclusão usadas pelo n8n.
 
 As migrações documentam a evolução do banco e permitem reproduzir sua estrutura em outro ambiente.

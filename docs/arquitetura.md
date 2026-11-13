@@ -27,7 +27,7 @@ flowchart LR
 2. `QuoteForm` converte os campos em JSON e envia uma requisição para `/api/solicitacoes`.
 3. A API limita o tamanho dos textos, verifica campos obrigatórios e aplica uma proteção simples contra robôs.
 4. A API chama a função `criar_solicitacao_publica` do Supabase.
-5. A função cria ou atualiza o cliente pelo WhatsApp, registra a solicitação com status `novo` e grava o primeiro item do histórico.
+5. A função cria o cliente quando o WhatsApp ainda não está cadastrado. Se já estiver, vincula a nova solicitação ao cliente sem alterar seus dados. Em ambos os casos, a solicitação recebe o status `novo` e o primeiro registro no histórico.
 6. O painel consulta novamente os dados e apresenta a solicitação para a equipe.
 
 ## Fluxo de atualização do status
@@ -37,8 +37,11 @@ flowchart LR
 3. A API confirma a identidade do usuário e valida se o status é permitido.
 4. A função protegida do banco atualiza a solicitação.
 5. O status anterior, o novo status e uma observação são registrados em `historico_status`.
-6. A automação registra se a notificação por e-mail foi enviada ou se o atendimento precisa de verificação manual.
 6. A interface atualiza os cartões e o funil sem recarregar a página inteira.
+
+## Fluxo de notificação comercial
+
+A inserção da solicitação cria uma entrada na fila de e-mail na mesma transação. O n8n reserva entradas da fila, envia os e-mails via Resend e registra o resultado no Supabase. A solicitação e o histórico comercial são independentes do resultado da notificação. A operação da fila está descrita no [guia do n8n](../infra/n8n/README.md).
 
 ## Fluxo de criação do orçamento
 
@@ -77,6 +80,6 @@ Essa separação mantém fatos do fluxo, como uma mudança de etapa, distintos d
 | API | Validar entradas e controlar acesso | rotas em `app/api` |
 | Regras do banco | Executar operações consistentes e protegidas | funções RPC |
 | Banco de dados | Armazenar clientes, solicitações e histórico | tabelas PostgreSQL |
-| Hospedagem | Executar a aplicação e identificar o usuário | Sites/Cloudflare |
+| Hospedagem | Executar a aplicação | Sites/Cloudflare |
 
 Essa separação facilita a manutenção: a tela não acessa as tabelas diretamente, e as regras críticas permanecem no backend e no banco.
