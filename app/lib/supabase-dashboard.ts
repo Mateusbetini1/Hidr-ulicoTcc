@@ -65,8 +65,7 @@ export async function supabaseDashboardRpc<T>(
   });
 
   if (!response.ok) {
-    const details = await response.text();
-    console.error('Supabase dashboard request failed', response.status, details);
+    console.error('Supabase dashboard request failed', response.status);
     throw new Error('Não foi possível consultar o painel.');
   }
 
