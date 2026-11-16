@@ -13,7 +13,9 @@ async function source(path, replacements = {}) {
 const countUrl = await source('../app/lib/character-count.ts');
 const domainUrl = await source('../app/lib/commercial-triage.ts', { './character-count': countUrl });
 const domain = await import(domainUrl);
-const replacements = { '../../lib/commercial-triage': domainUrl, '../../lib/character-count': countUrl, 'next/server': import.meta.resolve('next/server.js') };
+const actionUrl = await source('../app/lib/turnstile-action.ts');
+const verifyUrl = await source('../app/lib/verify-quote-challenge.ts', { './turnstile-action': actionUrl });
+const replacements = { '../../lib/commercial-triage': domainUrl, '../../lib/character-count': countUrl, '../../lib/verify-quote-challenge': verifyUrl, 'next/server': import.meta.resolve('next/server.js') };
 const submit = await import(await source('../app/api/solicitacoes/route.ts', replacements));
 const ai = await import(await source('../app/api/triagem/route.ts', replacements));
 const chatbot = await import(await source('../app/api/chatbot/route.ts', replacements));
@@ -41,17 +43,78 @@ test('resumo máximo cabe no limite existente do banco', () => {
   const full = { servico: 'manutencao', aplicacao: 'x'.repeat(250), quantidade: 'x'.repeat(80), medidas: 'x'.repeat(250), problema: 'x'.repeat(250), prazoDesejado: 'x'.repeat(250) };
   assert.ok(domain.triageDescription('x'.repeat(1000), full).length <= 3000);
 });
+
+test('cadastro exige Turnstile válido, rejeita reutilização e falha sem gravar', async (t) => {
+  const env = {
+    SUPABASE_URL: 'https://db.example.invalid', SUPABASE_PUBLISHABLE_KEY: 'publishable-example',
+    SUPABASE_QUOTE_SECRET: 'a'.repeat(64), TURNSTILE_SITE_KEY: 'site-example',
+    TURNSTILE_SECRET_KEY: 'siteverify-example', TURNSTILE_HOSTNAME: 'demo.example.invalid',
+  };
+  const previous = Object.fromEntries(Object.keys(env).map((key) => [key, process.env[key]]));
+  Object.assign(process.env, env);
+  t.after(() => { for (const [key, value] of Object.entries(previous)) {
+    if (value === undefined) delete process.env[key]; else process.env[key] = value;
+  } });
+  const verified = { success: true, hostname: env.TURNSTILE_HOSTNAME, action: 'solicitacao' };
+  const rpcCalls = [];
+  const seen = new Set();
+  let count = 0;
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    if (url.startsWith('https://challenges.cloudflare.com/')) {
+      count++;
+      const fields = new URLSearchParams(init.body);
+      assert.equal(fields.get('secret'), env.TURNSTILE_SECRET_KEY);
+      const token = fields.get('response');
+      if (token === 'offline') throw new Error('offline');
+      if (token === 'invalid') return Response.json({success: false, 'error-codes': ['invalid-input-response']});
+      if (token === 'expired' || seen.has(token)) return Response.json({success: false, 'error-codes': ['timeout-or-duplicate']});
+      seen.add(token);
+      if (token === 'hostname') return Response.json({ ...verified, hostname: 'other.example.invalid' });
+      if (token === 'action') return Response.json({ ...verified, action: 'outra' });
+      return Response.json(verified);
+    }
+    assert.equal(url, `${env.SUPABASE_URL}/rest/v1/rpc/criar_solicitacao_worker`);
+    rpcCalls.push(JSON.parse(init.body));
+    return Response.json('test-id');
+  });
+  assert.deepEqual(await submit.GET().json(), { siteKey: env.TURNSTILE_SITE_KEY });
+  const valid = { name: 'Cliente Teste', phone: '00000000000', request: 'Dois cilindros com vazamento' };
+  const post = (turnstileToken) => submit.POST(request({ ...valid, turnstileToken, p_segredo: 'ignorado' }));
+  assert.equal((await post()).status, 400);
+  assert.equal((await post('x'.repeat(2049))).status, 400);
+  assert.equal(count, 0);
+  for (const token of ['invalid', 'expired', 'hostname', 'action']) assert.equal((await post(token)).status, 400);
+  assert.equal((await post('offline')).status, 503);
+  assert.deepEqual(rpcCalls, []);
+  const responses = await Promise.all([post('legitimate'), post('legitimate')]);
+  assert.deepEqual(responses.map(({status}) => status).sort(), [201, 400]);
+  assert.equal(rpcCalls.length, 1);
+  assert.equal(rpcCalls[0].p_segredo, env.SUPABASE_QUOTE_SECRET);
+  assert.ok(!('turnstileToken' in rpcCalls[0]));
+  delete process.env.SUPABASE_QUOTE_SECRET;
+  assert.equal(submit.GET().status, 503);
+  assert.equal((await post('legitimate-other')).status, 503);
+  assert.equal(rpcCalls.length, 1);
+});
+
 test('contratos HTTP sem chamadas externas', async () => {
   const originalFetch = globalThis.fetch;
   const saved = { ...process.env };
   let calls = [];
   try {
-    globalThis.fetch = async (url, init) => { calls.push({ url, body: JSON.parse(init.body) }); return Response.json('test-id'); };
+    globalThis.fetch = async (url, init) => {
+      if (url.startsWith('https://challenges.cloudflare.com/')) return Response.json({ success: true, hostname: 'localhost', action: 'solicitacao' });
+      calls.push({ url, body: JSON.parse(init.body) });
+      return Response.json('test-id');
+    };
     process.env.SUPABASE_URL = 'https://example.invalid';
     process.env.SUPABASE_PUBLISHABLE_KEY = 'test';
-    const valid = { name: 'Cliente Teste', phone: '00000000000', request: 'Dois cilindros com vazamento', triage: domain.emptyTriage, confirmed: true };
+    process.env.SUPABASE_QUOTE_SECRET = 'a'.repeat(64);
+    process.env.TURNSTILE_SECRET_KEY = 'test';
+    process.env.TURNSTILE_HOSTNAME = 'localhost';
+    const valid = { name: 'Cliente Teste', phone: '00000000000', request: 'Dois cilindros com vazamento', triage: domain.emptyTriage, confirmed: true, turnstileToken: 'test-token' };
     assert.equal((await submit.POST(request({ ...valid, confirmed: false }))).status, 400);
-    const direct = { name: valid.name, phone: '+55 (11) 00000-0000', request: valid.request };
+    const direct = { name: valid.name, phone: '+55 (11) 00000-0000', request: valid.request, turnstileToken: 'other-test-token' };
     for (const [input, message] of [
       [{ name: 'x'.repeat(121) }, /nome/],
       [{ name: '🔧' }, /nome/],
@@ -75,13 +138,14 @@ test('contratos HTTP sem chamadas externas', async () => {
     const fullDescription = '🔧'.repeat(3000);
     assert.equal((await submit.POST(request({ ...direct, request: fullDescription }))).status, 201);
     assert.deepEqual(calls[1].body, {
+      p_segredo: process.env.SUPABASE_QUOTE_SECRET,
       p_nome: direct.name, p_empresa: null, p_whatsapp: direct.phone, p_email: null,
       p_descricao: fullDescription, p_origem: 'site',
     });
     assert.equal((await submit.POST(request(null))).status, 400);
     assert.equal((await submit.POST(request({ ...valid, request: 'x'.repeat(17000) }))).status, 413);
     globalThis.fetch = async () => { throw new Error('offline'); };
-    assert.equal((await submit.POST(request(valid))).status, 502);
+    assert.equal((await submit.POST(request(valid))).status, 503);
     process.env.TRIAGE_AI_ENABLED = 'false';
     assert.deepEqual(await (await ai.GET()).json(), { available: false });
     assert.equal((await ai.POST(request({ request: valid.request }))).status, 503);

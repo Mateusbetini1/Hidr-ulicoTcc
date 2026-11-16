@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useQuoteChallenge } from './quote-challenge';
 import {
   emptyTriage,
   parseChatbotResult,
@@ -25,6 +26,7 @@ export function CommercialChatbot() {
   const [description, setDescription] = useState('');
   const [triage, setTriage] = useState<Triage>({ ...emptyTriage });
   const [ready, setReady] = useState(false);
+  const challenge = useQuoteChallenge();
   const [handoff, setHandoff] = useState(false);
   const [contact, setContact] = useState({ name: '', company: '', phone: '', email: '', website: '' });
   const [busy, setBusy] = useState(false);
@@ -63,6 +65,7 @@ export function CommercialChatbot() {
       if (!response.ok) throw new Error(result.message || 'Não foi possível continuar o atendimento.');
       const parsed = parseChatbotResult(result);
       setTriage(parsed.triage);
+      if (!parsed.readyForReview) challenge.reset();
       setReady(parsed.readyForReview);
       setHandoff(parsed.handoffRequested);
       setMessages(current => [...current, { role: 'assistant', content: parsed.reply }]);
@@ -75,13 +78,13 @@ export function CommercialChatbot() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (lock.current) return;
+    if (lock.current || !challenge.token) return;
     lock.current = true; setBusy(true); setMessage('');
     try {
       const response = await fetch('/api/solicitacoes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...contact, request: description, triage, confirmed: true }),
+        body: JSON.stringify({ ...contact, request: description, triage, confirmed: true, turnstileToken: challenge.token }),
       });
       const result = await response.json() as { message?: string };
       if (!response.ok) throw new Error(result.message || 'Não foi possível enviar.');
@@ -89,7 +92,7 @@ export function CommercialChatbot() {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Não foi possível enviar. Seus dados foram mantidos.');
     } finally {
-      lock.current = false; setBusy(false);
+      challenge.reset(); lock.current = false; setBusy(false);
     }
   }
 
@@ -123,7 +126,8 @@ export function CommercialChatbot() {
       <label className="triage-confirm"><input type="checkbox" required />Revisei os dados e autorizo o encaminhamento desta solicitação à equipe WG.</label>
       <details><summary>Ver texto que será enviado</summary><pre>{triageDescription(description, triage)}</pre></details>
       <label className="quote-honeypot" aria-hidden="true">Site<input tabIndex={-1} autoComplete="off" value={contact.website} onChange={event => setContact({ ...contact, website: event.target.value })} /></label>
-      <button disabled={busy} type="submit">{busy ? 'Enviando…' : 'Enviar para avaliação'}</button>
+      {challenge.widget}
+      <button disabled={busy || !challenge.token} type="submit">{busy ? 'Enviando…' : 'Enviar para avaliação'}</button>
     </form>}
     {message && <p role="status" className="triage-message">{message}</p>}
   </section>;

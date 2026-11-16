@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { characterCount } from '../../lib/character-count';
 import { parseTriage, triageDescription } from '../../lib/commercial-triage';
+import { verifyQuoteChallenge } from '../../lib/verify-quote-challenge';
 
 type QuotePayload = {
   name?: unknown;
@@ -11,7 +12,18 @@ type QuotePayload = {
   website?: unknown;
   triage?: unknown;
   confirmed?: unknown;
+  turnstileToken?: unknown;
 };
+
+const noStore = { 'Cache-Control': 'no-store' };
+
+export function GET() {
+  const siteKey = process.env.TURNSTILE_SITE_KEY;
+  const configured = siteKey && process.env.TURNSTILE_SECRET_KEY && process.env.TURNSTILE_HOSTNAME && process.env.SUPABASE_QUOTE_SECRET;
+  return configured
+    ? NextResponse.json({ siteKey }, { headers: noStore })
+    : NextResponse.json({ message: 'A verificação de segurança está indisponível.' }, { status: 503, headers: noStore });
+}
 
 function optionalText(value: unknown) {
   if (value == null) return '';
@@ -32,7 +44,7 @@ export async function POST(request: Request) {
 
   // Campo invisível para usuários: robôs costumam preenchê-lo automaticamente.
   if (typeof payload.website === 'string' && payload.website.trim()) {
-    return NextResponse.json({ message: 'Solicitação enviada com sucesso.' });
+    return NextResponse.json({ message: 'Dados inválidos.' }, { status: 400 });
   }
 
   const name = optionalText(payload.name);
@@ -71,24 +83,40 @@ export async function POST(request: Request) {
 
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY;
+  const quoteSecret = process.env.SUPABASE_QUOTE_SECRET;
+  const challengeSecret = process.env.TURNSTILE_SECRET_KEY;
+  const challengeHostname = process.env.TURNSTILE_HOSTNAME;
 
-  if (!supabaseUrl || !supabaseKey) {
+  if (!supabaseUrl || !supabaseKey || !quoteSecret || !challengeSecret || !challengeHostname) {
     return NextResponse.json(
       { message: 'O recebimento de solicitações ainda está sendo configurado.' },
       { status: 503 },
     );
   }
 
+  const token = payload.turnstileToken;
+  if (typeof token !== 'string' || !token.trim() || token.length > 2048) {
+    return NextResponse.json({ message: 'Conclua a verificação de segurança antes de enviar.' }, { status: 400 });
+  }
+  const challenge = await verifyQuoteChallenge(token, challengeSecret, challengeHostname);
+  if (challenge !== 'verified') {
+    return challenge === 'unavailable'
+      ? NextResponse.json({ message: 'A verificação de segurança está indisponível. Tente novamente.' }, { status: 503 })
+      : NextResponse.json({ message: 'A verificação de segurança falhou ou expirou. Faça uma nova verificação.' }, { status: 400 });
+  }
+
   let response: Response;
   try {
-    response = await fetch(`${supabaseUrl}/rest/v1/rpc/criar_solicitacao_publica`, {
+    response = await fetch(`${supabaseUrl}/rest/v1/rpc/criar_solicitacao_worker`, {
     method: 'POST',
+      redirect: 'manual',
+      cache: 'no-store',
     headers: {
       apikey: supabaseKey,
-      Authorization: `Bearer ${supabaseKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
+      p_segredo: quoteSecret,
       p_nome: name,
       p_empresa: company || null,
       p_whatsapp: phone,
@@ -102,7 +130,7 @@ export async function POST(request: Request) {
   }
 
   if (!response.ok) {
-    console.error('Supabase quote request failed', response.status, await response.text());
+    console.error('Supabase quote request failed', response.status);
     return NextResponse.json(
       { message: 'Não foi possível registrar agora. Tente novamente em instantes.' },
       { status: 502 },

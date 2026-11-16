@@ -1,9 +1,10 @@
--- Banco local descartável com as migrações aplicadas. psql -v ON_ERROR_STOP=1 -f ...
+-- Banco local descartável com as migrações 001–008 aplicadas. psql -v ON_ERROR_STOP=1 -f ...
 begin;
 
 do $$
 declare
   v_chave constant text := 'chave-isolada-de-teste';
+  v_segredo text := repeat('a', 64);
   v_solicitacao uuid;
   v_reserva jsonb;
   v_retry jsonb;
@@ -13,10 +14,11 @@ begin
   insert into private.painel_config (id, chave_hash)
   values (true, encode(extensions.digest(v_chave, 'sha256'), 'hex'))
   on conflict (id) do update set chave_hash = excluded.chave_hash;
+  insert into private.cadastro_worker_config (segredo_hash) values (encode(extensions.digest(v_segredo, 'sha256'), 'hex'));
 
   set local role anon;
-  v_solicitacao := public.criar_solicitacao_publica(
-    'Cliente de teste', null, 'teste-' || gen_random_uuid(), null, 'Pedido de teste da fila'
+  v_solicitacao := public.criar_solicitacao_worker(
+    v_segredo, 'Cliente de teste', null, 'teste-' || gen_random_uuid(), null, 'Pedido de teste da fila', 'site'
   );
   perform public.atualizar_status_painel(v_chave, v_solicitacao, 'orcamento');
   begin

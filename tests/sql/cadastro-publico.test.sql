@@ -1,10 +1,11 @@
--- Execute em um banco local de testes com as migrações aplicadas:
+-- Execute em um banco local de testes com as migrações 001–008 aplicadas:
 -- psql -v ON_ERROR_STOP=1 -f tests/sql/cadastro-publico.test.sql
 begin;
 
 do $$
 declare
   v_whatsapp text := 'teste-' || gen_random_uuid()::text;
+  v_segredo text := repeat('a', 64);
   v_primeira_id uuid;
   v_segunda_id uuid;
   v_cliente_id uuid;
@@ -12,10 +13,11 @@ declare
   v_solicitacao_original jsonb;
   v_historico_original jsonb;
 begin
+  insert into private.cadastro_worker_config (segredo_hash) values (encode(extensions.digest(v_segredo, 'sha256'), 'hex'));
   set local role anon;
-  v_primeira_id := public.criar_solicitacao_publica(
-    'Cliente original', 'Empresa original', v_whatsapp,
-    'original@example.invalid', 'Solicitação original de teste'
+  v_primeira_id := public.criar_solicitacao_worker(
+    v_segredo, 'Cliente original', 'Empresa original', v_whatsapp,
+    'original@example.invalid', 'Solicitação original de teste', 'site'
   );
   reset role;
 
@@ -32,8 +34,8 @@ begin
   where solicitacao_id = v_primeira_id and status_novo = 'novo';
 
   set local role anon;
-  v_segunda_id := public.criar_solicitacao_publica(
-    'Outro nome', 'Outra empresa', ' ' || v_whatsapp || ' ',
+  v_segunda_id := public.criar_solicitacao_worker(
+    v_segredo, 'Outro nome', 'Outra empresa', ' ' || v_whatsapp || ' ',
     'outro@example.invalid', 'Nova solicitação de teste', 'site_triagem'
   );
   reset role;

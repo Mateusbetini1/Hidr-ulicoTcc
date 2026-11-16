@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useRef, useState } from 'react';
+import { useQuoteChallenge } from './quote-challenge';
 
 type SubmissionState =
   | { kind: 'idle'; message: '' }
@@ -8,10 +9,14 @@ type SubmissionState =
 
 export function QuoteForm() {
   const formRef = useRef<HTMLFormElement>(null);
+  const lock = useRef(false);
+  const challenge = useQuoteChallenge();
   const [state, setState] = useState<SubmissionState>({ kind: 'idle', message: '' });
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (lock.current || !challenge.token) return;
+    lock.current = true;
     setState({ kind: 'sending', message: 'Enviando sua solicitação…' });
 
     const form = new FormData(event.currentTarget);
@@ -21,7 +26,7 @@ export function QuoteForm() {
       const response = await fetch('/api/solicitacoes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, turnstileToken: challenge.token }),
       });
       const result = (await response.json()) as { message?: string };
 
@@ -39,6 +44,9 @@ export function QuoteForm() {
         kind: 'error',
         message: error instanceof Error ? error.message : 'Não foi possível enviar a solicitação.',
       });
+    } finally {
+      challenge.reset();
+      lock.current = false;
     }
   }
 
@@ -77,7 +85,8 @@ export function QuoteForm() {
         Site
         <input name="website" tabIndex={-1} autoComplete="off" />
       </label>
-      <button type="submit" disabled={state.kind === 'sending'}>
+      {challenge.widget}
+      <button type="submit" disabled={state.kind === 'sending' || !challenge.token}>
         {state.kind === 'sending' ? 'Enviando…' : 'Enviar solicitação'}
       </button>
       {state.kind !== 'idle' && (

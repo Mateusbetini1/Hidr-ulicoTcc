@@ -1,10 +1,12 @@
 'use client';
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
+import { useQuoteChallenge } from './quote-challenge';
 import { emptyTriage, parseTriage, pendingFields, serviceLabels, triageDescription, type Triage } from '../lib/commercial-triage';
 
 export function CommercialTriage() {
   const [step, setStep] = useState(1);
+  const challenge = useQuoteChallenge();
   const [description, setDescription] = useState('');
   const [data, setData] = useState<Triage>({ ...emptyTriage });
   const [contact, setContact] = useState({ name: '', company: '', phone: '', email: '', website: '' });
@@ -36,17 +38,18 @@ export function CommercialTriage() {
     if (lock.current) return;
     if (description.trim().length < 10) { setMessage('Descreva sua necessidade em pelo menos 10 caracteres.'); return; }
     if (step < 3) { setMessage(''); setStep(step + 1); return; }
+    if (!challenge.token) return;
     lock.current = true; setBusy(true); setMessage('');
     try {
       const response = await fetch('/api/solicitacoes', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...contact, request: description, triage: data, confirmed: true }),
+        body: JSON.stringify({ ...contact, request: description, triage: data, confirmed: true, turnstileToken: challenge.token }),
       });
       const result = await response.json() as { message?: string };
       if (!response.ok) throw new Error(result.message || 'Não foi possível enviar.');
       setSent(true);
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível enviar. Seus dados foram mantidos.'); }
-    finally { lock.current = false; setBusy(false); }
+    finally { challenge.reset(); lock.current = false; setBusy(false); }
   }
 
   if (sent) return <section className="triage-card"><p className="public-kicker">Solicitação recebida</p><h2 ref={heading} tabIndex={-1}>Agora é com nossa equipe</h2><p>Seus dados foram enviados para avaliação. A equipe entrará em contato para confirmar as informações técnicas e preparar o orçamento.</p><p>O envio não confirma preço, prazo de entrega ou agendamento.</p><a href="/contato">Voltar ao contato</a></section>;
@@ -81,9 +84,10 @@ export function CommercialTriage() {
       <label className="triage-confirm"><input type="checkbox" required />Revisei os dados e quero encaminhá-los à equipe para retorno sobre esta solicitação.</label>
       <p className="triage-hint">Preço, compatibilidade e prazo de entrega serão definidos após avaliação. Nenhuma reunião será agendada neste envio.</p>
       <details><summary>Ver texto que será enviado</summary><pre>{triageDescription(description, data)}</pre></details>
+      {challenge.widget}
     </>}
     <label className="quote-honeypot" aria-hidden="true">Site<input tabIndex={-1} autoComplete="off" value={contact.website} onChange={e => setContact({ ...contact, website: e.target.value })} /></label>
     {message && <p role="status" className="triage-message">{message}</p>}
-    <div className="triage-actions">{step > 1 && <button type="button" className="triage-secondary" disabled={busy} onClick={() => { setMessage(''); setStep(step - 1); }}>Voltar e editar</button>}<button disabled={busy} type="submit">{busy ? 'Aguarde…' : step === 1 ? 'Continuar preenchimento' : step === 2 ? 'Revisar solicitação' : 'Enviar para avaliação'}</button></div>
+    <div className="triage-actions">{step > 1 && <button type="button" className="triage-secondary" disabled={busy} onClick={() => { setMessage(''); challenge.reset(); setStep(step - 1); }}>Voltar e editar</button>}<button disabled={busy || (step === 3 && !challenge.token)} type="submit">{busy ? 'Aguarde…' : step === 1 ? 'Continuar preenchimento' : step === 2 ? 'Revisar solicitação' : 'Enviar para avaliação'}</button></div>
   </form>;
 }
