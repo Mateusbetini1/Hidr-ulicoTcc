@@ -37,6 +37,7 @@ const localBindingConfig = {
 };
 
 export default defineConfig(async () => {
+  const homologacao = process.env.WG_BUILD_HOMOLOGACAO === 'true';
   // Keep Wrangler and Miniflare state project-local. These are non-secret tool
   // settings; application environment belongs in ignored `.env*` files.
   process.env.WRANGLER_WRITE_LOGS ??= 'false';
@@ -47,6 +48,11 @@ export default defineConfig(async () => {
   const { cloudflare } = await import('@cloudflare/vite-plugin');
 
   return {
+    environments: {
+      // Os imports dinâmicos do router precisam conservar o namespace do módulo
+      // quando o Rolldown compartilha código com a entrada do navegador.
+      client: { build: { rolldownOptions: { preserveEntrySignatures: 'strict' as const } } },
+    },
     css: { postcss: { plugins: [tailwindcss()] } },
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }
@@ -56,7 +62,17 @@ export default defineConfig(async () => {
       sites(),
       cloudflare({
         viteEnvironment: { name: 'rsc', childEnvironments: ['ssr'] },
-        config: localBindingConfig,
+        config: homologacao ? {
+          ...localBindingConfig,
+          name: 'wg-hidraulica-tcc-teste',
+          workers_dev: false,
+          preview_urls: false,
+          vars: {
+            AUTH_DEV_BYPASS: 'false',
+            CHATBOT_AI_ENABLED: 'false',
+            TRIAGE_AI_ENABLED: 'false',
+          },
+        } : localBindingConfig,
       }),
     ],
   };
